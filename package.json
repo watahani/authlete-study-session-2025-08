@@ -1,15 +1,36 @@
 {
   "name": "authlete-study-sessoin-202508",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {},
-  "keywords": [],
+  "description": "Authlete Study Session 2025-08 Ticket Sales Service",
+  "main": "dist/app.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/app.js",
+    "dev": "tsx src/app.ts",
+    "test": "npx playwright test"
+  },
+  "keywords": ["authlete", "oauth", "mcp", "tickets"],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
+  "dependencies": {
+    "express": "^4.18.2",
+    "mysql2": "^3.6.3",
+    "passport": "^0.7.0",
+    "passport-local": "^1.0.0",
+    "express-session": "^1.17.3",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.3.1"
+  },
   "devDependencies": {
     "@playwright/test": "^1.54.2",
-    "@types/node": "^24.2.0"
+    "@types/node": "^24.2.0",
+    "@types/express": "^4.17.21",
+    "@types/passport": "^1.0.16",
+    "@types/passport-local": "^1.0.38",
+    "@types/express-session": "^1.17.10",
+    "@types/bcryptjs": "^2.4.6",
+    "typescript": "^5.3.3",
+    "tsx": "^4.6.2"
   }
 }
