@@ -23,7 +23,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
         
-      - name: Install Playwright
+      - name: Get installed Playwright version
+        id: playwright-version
+        run: echo "version=$(npm list --depth=0 --json | jq -r '.dependencies["@playwright/test"].version')" >> $GITHUB_OUTPUT
+        
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+        
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps
         
       - name: Build application
