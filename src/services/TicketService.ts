@@ -1,6 +1,11 @@
 import { MockDatabaseConfig as DatabaseConfig } from '../config/mock-database.js';
 import { Ticket, Reservation, ReservationWithDetails } from '../types/index.js';
 
+interface ResultSetHeader {
+  insertId: number;
+  affectedRows?: number;
+}
+
 export class TicketService {
   static async getAllTickets(): Promise<Ticket[]> {
     const connection = DatabaseConfig.getConnection();
@@ -55,7 +60,7 @@ export class TicketService {
         [userId, ticketId, seats]
       );
       
-      const reservationId = (result as { insertId: number }).insertId;
+      const reservationId = (result as ResultSetHeader).insertId;
       
       const [reservations] = await connection.execute(
         'SELECT * FROM reservations WHERE id = ?',

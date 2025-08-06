@@ -4,6 +4,11 @@ import { Strategy as LocalStrategy } from 'passport-local';
 import { MockDatabaseConfig as DatabaseConfig } from '../config/mock-database.js';
 import { User, UserWithPassword, CreateUserRequest } from '../types/index.js';
 
+interface ResultSetHeader {
+  insertId: number;
+  affectedRows?: number;
+}
+
 export class AuthService {
   static async register(userData: CreateUserRequest): Promise<User> {
     const { username, password, email } = userData;
@@ -26,7 +31,7 @@ export class AuthService {
       [username, hashedPassword, email]
     );
     
-    const insertId = (result as { insertId: number }).insertId;
+    const insertId = (result as ResultSetHeader).insertId;
     
     const [users] = await connection.execute(
       'SELECT id, username, email, created_at FROM users WHERE id = ?',

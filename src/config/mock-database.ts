@@ -7,6 +7,30 @@ interface MockUser {
   created_at: Date;
 }
 
+interface ResultSetHeader {
+  insertId: number;
+  affectedRows?: number;
+}
+
+interface UserPartial {
+  id: number;
+  username: string;
+  email: string;
+  created_at: Date;
+}
+
+interface TicketAvailabilityRow {
+  available_seats: number;
+}
+
+type QueryResult = 
+  | MockUser[] 
+  | MockTicket[] 
+  | MockReservation[] 
+  | UserPartial[]
+  | TicketAvailabilityRow[]
+  | ResultSetHeader;
+
 interface MockTicket {
   id: number;
   title: string;
@@ -71,7 +95,7 @@ export class MockDatabaseConfig {
 
   static getConnection() {
     return {
-      async execute(query: string, params: any[] = []): Promise<[any[], any]> {
+      async execute(query: string, params: any[] = []): Promise<[QueryResult, any]> {
         if (query.includes('SELECT id FROM users WHERE username = ? OR email = ?')) {
           const [username, email] = params;
           const existingUsers = users.filter(u => u.username === username || u.email === email);
@@ -88,7 +112,7 @@ export class MockDatabaseConfig {
             created_at: new Date()
           };
           users.push(newUser);
-          return [{ insertId: newUser.id }, {}];
+          return [{ insertId: newUser.id } as ResultSetHeader, {}];
         }
         
         if (query.includes('SELECT id, username, email, created_at FROM users WHERE id = ?')) {
@@ -125,7 +149,7 @@ export class MockDatabaseConfig {
           if (ticket) {
             ticket.available_seats -= seats;
           }
-          return [{}, {}];
+          return [{ insertId: 0, affectedRows: 1 } as ResultSetHeader, {}];
         }
         
         if (query.includes('INSERT INTO reservations')) {
@@ -139,7 +163,7 @@ export class MockDatabaseConfig {
             status: 'active'
           };
           reservations.push(newReservation);
-          return [{ insertId: newReservation.id }, {}];
+          return [{ insertId: newReservation.id } as ResultSetHeader, {}];
         }
         
         if (query.includes('SELECT * FROM reservations WHERE id = ?')) {
