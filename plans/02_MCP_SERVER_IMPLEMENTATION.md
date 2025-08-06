@@ -223,7 +223,8 @@ docker/
 
 #### list_tickets
 - **説明**: 利用可能なチケットの一覧を取得
-- **パラメータ**: なし
+- **パラメータ**: 
+  - `limit` (optional): 取得上限
 - **戻り値**: チケット配列（ID、タイトル、価格、席数、日時）
 
 #### search_tickets
@@ -239,20 +240,19 @@ docker/
 - **パラメータ**:
   - `ticket_id` (required): チケットID
   - `seats` (required): 予約席数
-  - `user_id` (required): ユーザーID
+  - `user_id` : ユーザーID は入力させず、トークンから取得
 - **戻り値**: 予約情報（予約ID、ステータス）
 
 #### cancel_reservation
 - **説明**: 予約をキャンセル
 - **パラメータ**:
   - `reservation_id` (required): 予約ID
-  - `user_id` (required): ユーザーID
+  - `user_id` : ユーザーID は入力させず、トークンから取得
 - **戻り値**: キャンセル結果
 
 #### get_user_reservations
 - **説明**: ユーザーの予約履歴を取得
-- **パラメータ**:
-  - `user_id` (required): ユーザーID
+- **パラメータ**: なし。ユーザーID はトークンから取得
 - **戻り値**: 予約履歴配列
 
 ### セキュリティ要件
@@ -263,9 +263,6 @@ docker/
 
 ### Cedar 権限管理仕様
 - **Admin**: 全ての操作が可能
-- **TicketViewer**: チケット一覧・検索のみ可能
-- **BudgetUser**: 5000円以下のチケット予約が可能
-- **将来拡張**: 特定イベント限定、時間制限等の粒度で権限設定可能
 
 ## 実装優先順位
 
