@@ -34,7 +34,6 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const MCP_ENABLED = process.env.MCP_ENABLED === 'true';
 
 // MCP サーバーインスタンス
 let mcpServer: Server | null = null;
@@ -54,20 +53,18 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
-// CORS設定（MCPが有効な場合）
-if (MCP_ENABLED) {
-  app.use(cors({
-    origin: [
-      'https://claude.ai',
-      /^http:\/\/localhost:\d+$/,
-      /^http:\/\/127\.0\.0\.1:\d+$/,
-      /^http:\/\/\[::1\]:\d+$/
-    ],
-    credentials: true,
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Id']
-  }));
-}
+// CORS設定
+app.use(cors({
+  origin: [
+    'https://claude.ai',
+    /^http:\/\/localhost:\d+$/,
+    /^http:\/\/127\.0\.0\.1:\d+$/,
+    /^http:\/\/\[::1\]:\d+$/
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Id']
+}));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -86,58 +83,12 @@ app.use(passport.session());
 app.use('/auth', authRoutes);
 app.use('/api', ticketRoutes);
 
-// MCP エンドポイント（MCPが有効な場合）
-if (MCP_ENABLED && mcpTransport) {
-  app.post('/mcp', async (req, res) => {
-    try {
-      await mcpTransport!.handleRequest(req, res, req.body);
-    } catch (error) {
-      console.error('MCP request handling failed:', error);
-      res.status(500).json({
-        error: {
-          code: -32603,
-          message: 'Internal error',
-          data: error instanceof Error ? error.message : 'Unknown error'
-        }
-      });
-    }
-  });
-
-  // MCP ヘルスチェック
-  app.get('/mcp/health', (_req, res) => {
-    res.json({
-      status: 'OK',
-      timestamp: new Date().toISOString(),
-      service: 'MCP Ticket Server'
-    });
-  });
-
-  // MCP サーバー情報
-  app.get('/mcp/info', (_req, res) => {
-    res.json({
-      name: 'authlete-study-session-mcp-server',
-      version: '1.0.0',
-      capabilities: {
-        tools: {
-          listChanged: false
-        }
-      },
-      endpoints: {
-        mcp: '/mcp',
-        health: '/mcp/health',
-        info: '/mcp/info'
-      }
-    });
-  });
-}
-
 app.get('/', (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
 // MCP サーバー初期化
 const initializeMCPServer = async (): Promise<void> => {
-  if (!MCP_ENABLED) return;
 
   // MCP サーバー作成
   mcpServer = new Server(
@@ -199,6 +150,58 @@ const initializeMCPServer = async (): Promise<void> => {
   // サーバーとトランスポートを接続
   await mcpServer.connect(mcpTransport);
 
+  // MCP エンドポイントを追加
+  app.post('/mcp', async (req, res) => {
+    try {
+      if (!mcpTransport) {
+        return res.status(503).json({
+          error: {
+            code: -32603,
+            message: 'MCP server not initialized',
+            data: 'Server is starting up'
+          }
+        });
+      }
+      await mcpTransport.handleRequest(req, res, req.body);
+    } catch (error) {
+      console.error('MCP request handling failed:', error);
+      res.status(500).json({
+        error: {
+          code: -32603,
+          message: 'Internal error',
+          data: error instanceof Error ? error.message : 'Unknown error'
+        }
+      });
+    }
+  });
+
+  // MCP ヘルスチェック
+  app.get('/mcp/health', (_req, res) => {
+    res.json({
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      service: 'MCP Ticket Server'
+    });
+  });
+
+  // MCP サーバー情報
+  app.get('/mcp/info', (_req, res) => {
+    res.json({
+      name: 'authlete-study-session-mcp-server',
+      version: '1.0.0',
+      capabilities: {
+        tools: {
+          listChanged: false
+        }
+      },
+      endpoints: {
+        mcp: '/mcp',
+        health: '/mcp/health',
+        info: '/mcp/info'
+      }
+    });
+  });
+
   console.log('MCP Server initialized successfully');
 };
 
@@ -231,10 +234,8 @@ const startServer = async (): Promise<void> => {
     
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
-      if (MCP_ENABLED) {
-        console.log(`MCP endpoint: http://localhost:${PORT}/mcp`);
-        console.log(`MCP health check: http://localhost:${PORT}/mcp/health`);
-      }
+      console.log(`MCP endpoint: http://localhost:${PORT}/mcp`);
+      console.log(`MCP health check: http://localhost:${PORT}/mcp/health`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
