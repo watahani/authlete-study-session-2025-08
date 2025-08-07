@@ -2,12 +2,17 @@
  * チケット関連ツールの実装
  */
 
-import { TicketService } from '../../services/TicketService.js';
+import { TicketRepository, TicketSearchOptions, ReservationOptions } from '../data/ticket-repository.js';
+import { UserRepository } from '../data/user-repository.js';
+import { ConnectionManager } from '../data/connection-manager.js';
 import { AuthService } from '../../services/AuthService.js';
 import { ToolResult, UserContext, TicketToolArguments } from '../types/mcp-types.js';
 import { Ticket, ReservationWithDetails } from '../../types/index.js';
 
 export class TicketTools {
+  private static ticketRepository = new TicketRepository();
+  private static userRepository = new UserRepository();
+  private static connectionManager = ConnectionManager.getInstance();
   
   /**
    * チケット一覧取得ツール
@@ -15,7 +20,7 @@ export class TicketTools {
   static async listTickets(args: TicketToolArguments, userContext?: UserContext): Promise<ToolResult> {
     try {
       const limit = args.limit || 10;
-      const tickets = await TicketService.getAllTickets();
+      const tickets = await this.ticketRepository.getAllTickets();
       
       // limit を適用
       const limitedTickets = tickets.slice(0, limit);
@@ -51,28 +56,20 @@ export class TicketTools {
    */
   static async searchTickets(args: TicketToolArguments, userContext?: UserContext): Promise<ToolResult> {
     try {
-      const tickets = await TicketService.getAllTickets();
+      const searchOptions: TicketSearchOptions = {
+        maxPrice: args.max_price,
+        availableSeatsMin: args.min_available_seats,
+        limit: args.limit || 50,
+        sortBy: 'event_date',
+        sortOrder: 'asc'
+      };
+
+      let filteredTickets = await this.ticketRepository.searchTickets(searchOptions);
       
-      let filteredTickets = tickets;
-      
-      // タイトル検索
+      // タイトル検索（repositoryで実装されていないため、ここで追加フィルタリング）
       if (args.title) {
-        filteredTickets = filteredTickets.filter(ticket => 
+        filteredTickets = filteredTickets.filter((ticket: Ticket) => 
           ticket.title.toLowerCase().includes(args.title!.toLowerCase())
-        );
-      }
-      
-      // 価格フィルター
-      if (args.max_price !== undefined) {
-        filteredTickets = filteredTickets.filter(ticket => 
-          ticket.price <= args.max_price!
-        );
-      }
-      
-      // 席数フィルター
-      if (args.min_available_seats !== undefined) {
-        filteredTickets = filteredTickets.filter(ticket => 
-          ticket.available_seats >= args.min_available_seats!
         );
       }
 
@@ -150,7 +147,7 @@ export class TicketTools {
       }
 
       // チケット情報を確認
-      const ticket = await TicketService.getTicketById(args.ticket_id);
+      const ticket = await this.ticketRepository.getTicketById(args.ticket_id);
       if (!ticket) {
         return {
           content: [
@@ -164,11 +161,12 @@ export class TicketTools {
       }
 
       // 予約実行
-      const reservation = await TicketService.reserveTicket(
-        userContext.id,
-        args.ticket_id,
-        args.seats
-      );
+      const reservationOptions: ReservationOptions = {
+        userId: userContext.id,
+        ticketId: args.ticket_id,
+        seats: args.seats
+      };
+      const reservation = await this.ticketRepository.reserveTicket(reservationOptions);
 
       return {
         content: [
@@ -226,7 +224,7 @@ export class TicketTools {
         };
       }
 
-      await TicketService.cancelReservation(args.reservation_id, userContext.id);
+      await this.ticketRepository.cancelReservation(args.reservation_id, userContext.id);
 
       return {
         content: [
@@ -267,7 +265,7 @@ export class TicketTools {
         };
       }
 
-      const reservations = await TicketService.getUserReservations(userContext.id);
+      const reservations = await this.ticketRepository.getUserReservations(userContext.id);
 
       if (reservations.length === 0) {
         return {
@@ -280,7 +278,7 @@ export class TicketTools {
         };
       }
 
-      const reservationList = reservations.map(reservation => 
+      const reservationList = reservations.map((reservation: ReservationWithDetails) => 
         `予約ID: ${reservation.id} | チケット: ${reservation.ticket_title} | ` +
         `席数: ${reservation.seats_reserved}席 | 金額: ¥${(reservation.ticket_price * reservation.seats_reserved).toLocaleString()} | ` +
         `予約日: ${reservation.reservation_date.toISOString()} | イベント日: ${reservation.event_date.toISOString()} | ` +
