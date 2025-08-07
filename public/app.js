@@ -1,9 +1,38 @@
 let currentUser = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+    setupEventListeners();
     checkAuthStatus();
     loadTickets();
 });
+
+function setupEventListeners() {
+    // ログインボタン
+    document.getElementById('login-button').addEventListener('click', login);
+    
+    // 登録ボタン
+    document.getElementById('register-button').addEventListener('click', register);
+    
+    // ログアウトボタン
+    document.getElementById('logout-button').addEventListener('click', logout);
+    
+    // フォーム切り替えリンク
+    document.getElementById('show-register-link').addEventListener('click', (e) => {
+        e.preventDefault();
+        showRegisterForm();
+    });
+    
+    document.getElementById('show-login-link').addEventListener('click', (e) => {
+        e.preventDefault();
+        showLoginForm();
+    });
+    
+    // 予約履歴ボタン
+    document.getElementById('show-reservations-button').addEventListener('click', showMyReservations);
+    
+    // チケット一覧に戻るボタン
+    document.getElementById('show-tickets-button').addEventListener('click', showTickets);
+}
 
 function showMessage(message, type = 'info') {
     const messageDiv = document.getElementById('message');
@@ -146,12 +175,20 @@ async function loadTickets() {
                 <p>開催日時: ${new Date(ticket.event_date).toLocaleString('ja-JP')}</p>
                 ${currentUser ? `
                     <input type="number" id="seats-${ticket.id}" min="1" max="${ticket.available_seats}" value="1" style="width: 60px;">
-                    <button class="button" onclick="reserveTicket(${ticket.id})" ${ticket.available_seats === 0 ? 'disabled' : ''}>
+                    <button class="button reserve-button" data-ticket-id="${ticket.id}" ${ticket.available_seats === 0 ? 'disabled' : ''}>
                         ${ticket.available_seats === 0 ? '完売' : '予約する'}
                     </button>
                 ` : '<p>予約するにはログインしてください</p>'}
             </div>
         `).join('');
+        
+        // 予約ボタンにイベントリスナーを追加
+        document.querySelectorAll('.reserve-button').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const ticketId = e.target.getAttribute('data-ticket-id');
+                reserveTicket(parseInt(ticketId));
+            });
+        });
     } catch (error) {
         showMessage('チケット情報の取得に失敗しました', 'error');
     }
@@ -214,11 +251,19 @@ async function showMyReservations() {
                     <p>合計: ¥${(reservation.ticket_price * reservation.seats_reserved).toLocaleString()}</p>
                     <p>開催日時: ${new Date(reservation.event_date).toLocaleString('ja-JP')}</p>
                     <p>予約日時: ${new Date(reservation.reservation_date).toLocaleString('ja-JP')}</p>
-                    <button class="button" onclick="cancelReservation(${reservation.id})" style="background-color: #dc3545;">
+                    <button class="button cancel-button" data-reservation-id="${reservation.id}" style="background-color: #dc3545;">
                         予約キャンセル
                     </button>
                 </div>
             `).join('');
+            
+            // キャンセルボタンにイベントリスナーを追加
+            document.querySelectorAll('.cancel-button').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const reservationId = e.target.getAttribute('data-reservation-id');
+                    cancelReservation(parseInt(reservationId));
+                });
+            });
         }
     } catch (error) {
         showMessage('予約履歴の取得に失敗しました', 'error');
