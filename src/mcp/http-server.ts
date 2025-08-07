@@ -2,9 +2,10 @@
  * HTTP サーバーラッパー
  */
 
-import express from 'express';
+import express, { Request, Response } from 'express';
 import helmet from 'helmet';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { 
   CallToolRequestSchema, 
   ListToolsRequestSchema 
@@ -24,11 +25,11 @@ import {
 import { corsMiddleware } from './middleware/cors.js';
 import { loggingMiddleware, logger } from './middleware/logging.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
-import mcpRoutes from './routes/mcp-routes.js';
 
 export class MCPTicketServer {
   private server: Server;
   private app: express.Application;
+  private transport: StreamableHTTPServerTransport;
 
   constructor() {
     this.server = new Server(
@@ -41,9 +42,13 @@ export class MCPTicketServer {
       }
     );
 
+    this.transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined
+    });
+
     this.app = express();
     this.setupServer();
-    this.setupHttpHandlers();
+    this.setupMCPHandlers();
   }
 
   private setupServer(): void {
@@ -71,15 +76,42 @@ export class MCPTicketServer {
     this.app.use(express.json({ limit: '10mb' }));
     this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-    // ルート設定
-    this.app.use('/api/v1', mcpRoutes);
+    // MCP エンドポイント
+    this.app.post('/mcp', this.handleMCPRequest.bind(this));
+
+    // ヘルスチェックエンドポイント
+    this.app.get('/health', (_req: Request, res: Response) => {
+      res.json({
+        status: 'OK',
+        timestamp: new Date().toISOString(),
+        service: 'MCP Ticket Server'
+      });
+    });
+
+    // MCP サーバー情報エンドポイント
+    this.app.get('/info', (_req: Request, res: Response) => {
+      res.json({
+        name: 'authlete-study-session-mcp-server',
+        version: '1.0.0',
+        capabilities: {
+          tools: {
+            listChanged: false
+          }
+        },
+        endpoints: {
+          mcp: '/mcp',
+          health: '/health',
+          info: '/info'
+        }
+      });
+    });
 
     // エラーハンドリング
     this.app.use(notFoundHandler);
     this.app.use(errorHandler);
   }
 
-  private setupHttpHandlers(): void {
+  private setupMCPHandlers(): void {
     // ツール一覧を返すハンドラ
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
@@ -173,56 +205,20 @@ export class MCPTicketServer {
   }
 
   /**
-   * HTTP リクエストを MCP リクエストとして処理
+   * MCP HTTP リクエストハンドラー
    */
-  async handleHttpRequest(mcpRequest: any): Promise<any> {
-    const { method, params, id } = mcpRequest;
-
+  private async handleMCPRequest(req: Request, res: Response): Promise<void> {
     try {
-      if (method === 'tools/list') {
-        // 直接ツールリストを返す
-        return {
-          jsonrpc: '2.0',
-          id,
-          result: {
-            tools: [
-              listTicketsToolSchema,
-              searchTicketsToolSchema,
-              reserveTicketToolSchema,
-              cancelReservationToolSchema,
-              getUserReservationsToolSchema
-            ]
-          }
-        };
-      }
-
-      if (method === 'tools/call') {
-        // 直接ツール実行処理を呼び出し
-        const { name, arguments: args } = params;
-        const result = await this.handleToolCall(name, args || {});
-        
-        return {
-          jsonrpc: '2.0', 
-          id,
-          result: {
-            content: result.content,
-            isError: result.isError || false
-          }
-        };
-      }
-
-      throw new Error(`Unsupported method: ${method}`);
+      await this.transport.handleRequest(req, res, req.body);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return {
-        jsonrpc: '2.0',
-        id,
+      logger.error('MCP request handling failed:', error);
+      res.status(500).json({
         error: {
           code: -32603,
           message: 'Internal error',
-          data: errorMessage
+          data: error instanceof Error ? error.message : 'Unknown error'
         }
-      };
+      });
     }
   }
 
@@ -232,12 +228,15 @@ export class MCPTicketServer {
   async startHttpServer(): Promise<void> {
     const port = mcpConfig.port || 3001;
     
+    // MCP サーバーとトランスポートを接続
+    await this.server.connect(this.transport);
+    
     return new Promise((resolve) => {
       this.app.listen(port, () => {
         logger.info(`MCP HTTP Server running on port ${port}`);
-        logger.info(`Health check: http://localhost:${port}/api/v1/health`);
-        logger.info(`Server info: http://localhost:${port}/api/v1/info`);
-        logger.info(`MCP endpoint: http://localhost:${port}/api/v1/mcp`);
+        logger.info(`Health check: http://localhost:${port}/health`);
+        logger.info(`Server info: http://localhost:${port}/info`);
+        logger.info(`MCP endpoint: http://localhost:${port}/mcp`);
         resolve();
       });
     });

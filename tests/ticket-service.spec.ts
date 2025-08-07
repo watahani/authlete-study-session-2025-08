@@ -25,8 +25,14 @@ test.describe('チケット販売サービス', () => {
   });
 
   test('ユーザー登録ができる', async ({ page }) => {
+    // ページが完全に読み込まれるまで待機
+    await page.waitForLoadState('networkidle');
+    
     // 新規登録フォームを表示
-    await page.click('a:has-text("新規登録はこちら")');
+    await page.click('#show-register-link');
+    
+    // 登録フォームが表示されるまで待機
+    await expect(page.locator('#register-form')).toBeVisible();
     
     // 登録フォームに入力
     const timestamp = Date.now();
@@ -35,7 +41,7 @@ test.describe('チケット販売サービス', () => {
     await page.fill('#register-password', 'password123');
     
     // 登録実行
-    await page.click('button:has-text("登録")');
+    await page.click('#register-button');
     
     // 成功メッセージの確認
     await expect(page.locator('.success')).toContainText('登録が完了しました');
@@ -48,18 +54,21 @@ test.describe('チケット販売サービス', () => {
     const password = 'password123';
 
     // 1. 新規登録
-    await page.click('a:has-text("新規登録はこちら")');
+    await page.waitForLoadState('networkidle');
+    await page.click('#show-register-link');
+    await expect(page.locator('#register-form')).toBeVisible();
+    
     await page.fill('#register-username', username);
     await page.fill('#register-email', email);
     await page.fill('#register-password', password);
-    await page.click('button:has-text("登録")');
+    await page.click('#register-button');
     
     await expect(page.locator('.success')).toContainText('登録が完了しました');
 
     // 2. ログイン
     await page.fill('#login-username', username);
     await page.fill('#login-password', password);
-    await page.click('button:has-text("ログイン")');
+    await page.click('#login-button');
     
     await expect(page.locator('.success')).toContainText('ログインしました');
     await expect(page.locator('#user-info')).toContainText(`ログイン中: ${username}`);
@@ -76,18 +85,27 @@ test.describe('チケット販売サービス', () => {
     const timestamp = Date.now();
     const username = `testuser${timestamp}`;
     
-    await page.click('a:has-text("新規登録はこちら")');
+    await page.waitForLoadState('networkidle');
+    await page.click('#show-register-link');
+    await expect(page.locator('#register-form')).toBeVisible();
+    
     await page.fill('#register-username', username);
     await page.fill('#register-email', `test${timestamp}@example.com`);
     await page.fill('#register-password', 'password123');
-    await page.click('button:has-text("登録")');
+    await page.click('#register-button');
+    
+    // 登録完了後、ログインフォームに戻る
+    await expect(page.locator('.success')).toContainText('登録が完了しました');
     
     await page.fill('#login-username', username);
     await page.fill('#login-password', 'password123');
-    await page.click('button:has-text("ログイン")');
+    await page.click('#login-button');
+    
+    // ログイン成功確認
+    await expect(page.locator('#user-info')).toBeVisible();
     
     // ログアウト実行
-    await page.click('button:has-text("ログアウト")');
+    await page.click('#logout-button');
     
     // ログアウトの確認
     await expect(page.locator('.success')).toContainText('ログアウトしました');

@@ -101,9 +101,9 @@
                 <div class="form-group">
                     <input type="text" id="login-username" placeholder="ユーザー名">
                     <input type="password" id="login-password" placeholder="パスワード">
-                    <button class="button" onclick="login()">ログイン</button>
+                    <button id="login-button" class="button">ログイン</button>
                 </div>
-                <p><a href="#" onclick="showRegisterForm()">新規登録はこちら</a></p>
+                <p><a href="#" id="show-register-link">新規登録はこちら</a></p>
             </div>
 
             <div id="register-form" class="hidden">
@@ -112,15 +112,15 @@
                     <input type="text" id="register-username" placeholder="ユーザー名">
                     <input type="email" id="register-email" placeholder="メールアドレス">
                     <input type="password" id="register-password" placeholder="パスワード">
-                    <button class="button" onclick="register()">登録</button>
+                    <button id="register-button" class="button">登録</button>
                 </div>
-                <p><a href="#" onclick="showLoginForm()">ログインはこちら</a></p>
+                <p><a href="#" id="show-login-link">ログインはこちら</a></p>
             </div>
 
             <div id="user-info" class="user-info hidden">
                 <p>ログイン中: <span id="current-user"></span></p>
-                <button class="button" onclick="logout()">ログアウト</button>
-                <button class="button" onclick="showMyReservations()">予約履歴</button>
+                <button id="logout-button" class="button">ログアウト</button>
+                <button id="show-reservations-button" class="button">予約履歴</button>
             </div>
         </div>
 
@@ -134,7 +134,7 @@
         <div id="reservations-section" class="hidden">
             <h2>予約履歴</h2>
             <div id="reservations-list"></div>
-            <button class="button" onclick="showTickets()">チケット一覧に戻る</button>
+            <button id="show-tickets-button" class="button">チケット一覧に戻る</button>
         </div>
     </div>
 
