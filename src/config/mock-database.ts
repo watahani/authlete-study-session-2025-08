@@ -171,6 +171,62 @@ export class MockDatabaseConfig {
           const reservation = reservations.find(r => r.id === id);
           return [reservation ? [reservation] : [], {}];
         }
+
+        // getUserReservations用クエリ
+        if (query.includes('SELECT') && query.includes('FROM reservations r') && query.includes('JOIN tickets t')) {
+          const [userId] = params;
+          const userReservations = reservations
+            .filter(r => r.user_id === userId && r.status === 'active')
+            .map(reservation => {
+              const ticket = tickets.find(t => t.id === reservation.ticket_id);
+              if (!ticket) return null;
+              
+              return {
+                ...reservation,
+                ticket_title: ticket.title,
+                ticket_price: ticket.price,
+                event_date: ticket.event_date
+              };
+            })
+            .filter(r => r !== null)
+            .sort((a, b) => b!.reservation_date.getTime() - a!.reservation_date.getTime());
+          
+          return [userReservations, {}];
+        }
+
+        // 予約キャンセル用クエリ
+        if (query.includes('SELECT * FROM reservations WHERE id = ? AND user_id = ? AND status = "active"')) {
+          const [reservationId, userId] = params;
+          const reservation = reservations.find(r => 
+            r.id === reservationId && 
+            r.user_id === userId && 
+            r.status === 'active'
+          );
+          return [reservation ? [reservation] : [], {}];
+        }
+
+        if (query.includes('UPDATE reservations SET status = "cancelled" WHERE id = ?')) {
+          const [reservationId] = params;
+          const reservation = reservations.find(r => r.id === reservationId);
+          if (reservation) {
+            reservation.status = 'cancelled';
+          }
+          return [{ insertId: 0, affectedRows: 1 } as ResultSetHeader, {}];
+        }
+
+        if (query.includes('UPDATE tickets SET available_seats = available_seats + ? WHERE id = ?')) {
+          const [seats, ticketId] = params;
+          const ticket = tickets.find(t => t.id === ticketId);
+          if (ticket) {
+            ticket.available_seats += seats;
+          }
+          return [{ insertId: 0, affectedRows: 1 } as ResultSetHeader, {}];
+        }
+
+        // トランザクション用クエリ（モックなので何もしない）
+        if (query.includes('START TRANSACTION') || query.includes('COMMIT') || query.includes('ROLLBACK')) {
+          return [{ insertId: 0, affectedRows: 0 } as ResultSetHeader, {}];
+        }
         
         return [[], {}];
       },
