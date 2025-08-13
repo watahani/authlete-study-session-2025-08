@@ -8,6 +8,9 @@
     "start": "node dist/app.js",
     "dev": "tsx src/app.ts",
     "dev:mcp": "MCP_ENABLED=true tsx src/app.ts",
+    "dev:https": "tsx src/https-app.ts",
+    "dev:https:mcp": "MCP_ENABLED=true tsx src/https-app.ts",
+    "generate-ssl": "./scripts/generate-ssl-cert.sh",
     "mcp-server": "tsx src/mcp/server.ts",
     "mcp-http": "tsx src/mcp/http-main.ts",
     "test": "npx playwright test"
