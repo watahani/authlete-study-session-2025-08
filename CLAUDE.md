@@ -62,7 +62,7 @@ git checkout -b feature/user-authentication
 git checkout -b feature/mcp-server
 
 # 開発完了後
-git add .
+git add src/specific-file.ts  # 個別にファイルを追加（git add . は禁止）
 git commit -m "feat: implement ticket search functionality"
 git push origin feature/ticket-search
 ```
@@ -90,3 +90,8 @@ git push origin feature/ticket-search
 - クラスは Error 継承などの必要な場合のみ使用
 - ハードコーディングを避ける
 - Authlete API は SDK を使わず HTTP クライアントで直接呼び出し
+
+## Git 使用ルール
+
+- **`git add .` は使用禁止**: 変更したファイルを個別に指定して追加する
+- コミット前に必ず変更内容を確認し、意図しないファイルが含まれていないことを確認する
