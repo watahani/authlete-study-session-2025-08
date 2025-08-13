@@ -8,9 +8,16 @@
     "start": "node dist/app.js",
     "dev": "tsx src/app.ts",
     "dev:mcp": "MCP_ENABLED=true tsx src/app.ts",
+    "dev:https": "tsx src/https-app.ts",
+    "dev:https:mcp": "MCP_ENABLED=true tsx src/https-app.ts",
+    "generate-ssl": "./scripts/generate-ssl-cert.sh",
     "mcp-server": "tsx src/mcp/server.ts",
     "mcp-http": "tsx src/mcp/http-main.ts",
-    "test": "npx playwright test"
+    "test": "npx playwright test",
+    "test:http": "npx playwright test --project=chromium",
+    "test:https": "npx playwright test --config=playwright-https.config.ts",
+    "test:mcp": "npx playwright test tests/mcp-server.spec.ts --project=chromium",
+    "test:https:specific": "npx playwright test tests/https-specific.spec.ts --config=playwright-https.config.ts"
   },
   "keywords": ["authlete", "oauth", "mcp", "tickets"],
   "author": "",

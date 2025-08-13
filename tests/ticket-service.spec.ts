@@ -1,10 +1,13 @@
 import { test, expect } from '@playwright/test';
 
-const BASE_URL = 'http://localhost:3000';
+// Helper function to get base URL from test context
+function getBaseURL(page: any): string {
+  return page.context()._options.baseURL || 'http://localhost:3000';
+}
 
 test.describe('チケット販売サービス', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(BASE_URL);
+    await page.goto('/');
   });
 
   test('ホームページが正常に表示される', async ({ page }) => {

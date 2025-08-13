@@ -14,24 +14,133 @@ npm install
 docker-compose up -d
 ```
 
-### 3. アプリケーションの起動
+### 3. SSL証明書の生成（HTTPS使用時）
 ```bash
-# 開発モード
+# Self-signed SSL証明書を生成
+npm run generate-ssl
+```
+
+### 4. アプリケーションの起動
+```bash
+# 開発モード（HTTP）
 npm run dev
+
+# 開発モード（HTTPS）
+npm run dev:https
 
 # 本番モード
 npm run build
 npm start
 ```
 
-### 4. アプリケーションにアクセス
-http://localhost:3000
+### 5. アプリケーションにアクセス
+- HTTP: http://localhost:3000
+- HTTPS: https://localhost:3443
+
+## 🔒 HTTPS証明書の信頼設定
+
+認可サーバーの実装では **HTTPS必須** のため、Self-signed証明書を信頼する設定が必要です。
+
+### ⚠️ 重要な注意事項
+- 以下の設定は **開発環境のみ** で実施してください
+- 本番環境では正式なCA署名付き証明書を使用してください
+- 開発完了後は必ず証明書を削除してください
+
+### 証明書を信頼する方法
+
+#### **macOS**
+```bash
+# システムキーチェーンに証明書を追加
+sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ssl/localhost.crt
+
+# または手動でキーチェーンアクセスから追加
+# 1. キーチェーンアクセス.app を開く
+# 2. ssl/localhost.crt をダブルクリック
+# 3. 「信頼」セクションで「この証明書を使用する時」を「常に信頼」に変更
+```
+
+#### **Linux (Ubuntu/Debian)**
+```bash
+# システムの証明書ストアに追加
+sudo cp ssl/localhost.crt /usr/local/share/ca-certificates/localhost.crt
+sudo update-ca-certificates
+
+# 結果確認
+curl https://localhost:3443/health
+```
+
+#### **Windows**
+```cmd
+# 管理者権限でコマンドプロンプトを開く
+certlm.msc
+
+# 証明書マネージャーで以下の手順を実行:
+# 1. 「信頼されたルート証明機関」→「証明書」を右クリック
+# 2. 「すべてのタスク」→「インポート」
+# 3. ssl/localhost.crt を選択してインポート
+```
+
+### **ブラウザでの一時的な信頼（推奨）**
+システム全体に影響を与えたくない場合:
+
+1. https://localhost:3443 にアクセス
+2. 「この接続ではプライバシーが保護されません」画面
+3. 「詳細設定」→「localhost にアクセスする（安全ではありません）」をクリック
+
+### 証明書を削除する方法
+
+#### **macOS**
+```bash
+# システムキーチェーンから削除
+sudo security delete-certificate -c "localhost" /Library/Keychains/System.keychain
+
+# または手動削除
+# 1. キーチェーンアクセス.app を開く
+# 2. システムキーチェーン → 証明書 → "localhost" を選択
+# 3. 右クリック → 削除
+```
+
+#### **Linux**
+```bash
+# 証明書ファイルを削除
+sudo rm /usr/local/share/ca-certificates/localhost.crt
+sudo update-ca-certificates --fresh
+
+# 確認（証明書エラーが表示されれば正常）
+curl https://localhost:3443/health
+```
+
+#### **Windows**
+```cmd
+certlm.msc
+
+# 証明書マネージャーで以下の手順:
+# 1. 「信頼されたルート証明機関」→「証明書」→「localhost」を選択
+# 2. 右クリック → 削除
+```
+
+### **MCP Introspector での接続**
+
+1. 証明書を信頼した後、以下のURLでMCPサーバーに接続:
+   ```
+   https://localhost:3443/mcp
+   ```
+
+2. 証明書エラーが表示される場合は上記の信頼設定を確認してください
+
+### **認可サーバーでHTTPSが必要な理由**
+
+- OAuth 2.1 仕様ではHTTPS必須
+- Authlete APIへの接続時にセキュアな通信が必要
+- アクセストークン・認可コード等の機密情報保護
+- ブラウザのセキュリティポリシー（Same-origin policy、CORS）遵守
 
 ## 🏗️ プロジェクト構造
 
 ```
 src/
-├── app.ts                 # メインアプリケーション
+├── app.ts                 # メインアプリケーション（HTTP）
+├── https-app.ts          # HTTPSアプリケーション
 ├── config/
 │   └── database.ts       # データベース設定
 ├── models/               # データモデル（未使用）
@@ -75,15 +184,41 @@ plans/                   # プロジェクト計画書
 # データベースを起動
 docker-compose up -d
 
-# アプリケーションを起動
-npm run dev
-
-# 別ターミナルでテスト実行
+# すべてのテスト実行（HTTP環境）
 npm test
 
+# HTTP環境でのテスト実行
+npm run test:http
+
+# HTTPS環境でのテスト実行（SSL証明書生成後）
+npm run generate-ssl  # 初回のみ
+npm run test:https
+
+# MCP専用テスト
+npm run test:mcp              # HTTP環境でのMCPテスト
+npm run test:https:specific   # HTTPS特化機能テスト（リダイレクト、セキュリティヘッダー等）
+
 # UI モードでテスト実行
-npx playwright test --ui
+npx playwright test --ui                    # HTTP環境
+npx playwright test --ui --config=playwright-https.config.ts  # HTTPS環境
 ```
+
+### 🔒 HTTPS環境でのテスト
+
+HTTPS環境では以下を分離してテスト：
+
+**一般機能テスト**: `npm run test:https`
+- すべてのアプリケーション機能をHTTPS環境で検証
+- MCPサーバー機能、チケット予約機能、ユーザー認証等
+
+**HTTPS特化機能テスト**: `npm run test:https:specific`
+- HTTPS専用のセキュリティヘッダー（HSTS、CSP等）
+- HTTP→HTTPSリダイレクト
+- プロトコル確認（protocol: "HTTPS"）
+
+**注意**: 
+- HTTPSテストは証明書検証を無視する設定（`ignoreHTTPSErrors: true`）で実行
+- MCPの基本機能テストはHTTP環境で実行し、HTTPS特化機能のみ別途テスト
 
 ## 📊 データベース
 
