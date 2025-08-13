@@ -30,7 +30,7 @@ jobs:
       if: steps.playwright-cache.outputs.cache-hit != 'true'
       run: npx playwright install --with-deps
     - name: Run HTTP Playwright tests (excluding HTTPS-specific tests)
-      run: npx playwright test --ignore=tests/https-specific.spec.ts
+      run: npx playwright test --grep-invert "HTTPS Specific Tests"
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
       with:
