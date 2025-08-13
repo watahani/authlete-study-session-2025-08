@@ -25,8 +25,12 @@ npm run generate-ssl
 # 開発モード（HTTP）
 npm run dev
 
-# 開発モード（HTTPS）
+# 開発モード（HTTPS - SSL証明書生成後）
 npm run dev:https
+
+# MCP機能も有効にして起動
+npm run dev:mcp        # HTTP + MCP
+npm run dev:https:mcp  # HTTPS + MCP
 
 # 本番モード
 npm run build
@@ -139,11 +143,10 @@ certlm.msc
 
 ```
 src/
-├── app.ts                 # メインアプリケーション（HTTP）
-├── https-app.ts          # HTTPSアプリケーション
+├── app.ts                 # 統合アプリケーション（HTTP/HTTPS切り替え対応）
 ├── config/
-│   └── database.ts       # データベース設定
-├── models/               # データモデル（未使用）
+│   ├── database.ts       # MySQL データベース設定
+│   └── mock-database.ts  # モックデータベース設定
 ├── routes/               # API ルート
 │   ├── auth.ts          # 認証API
 │   └── tickets.ts       # チケットAPI
@@ -152,6 +155,12 @@ src/
 ├── services/            # ビジネスロジック
 │   ├── AuthService.ts   # 認証サービス
 │   └── TicketService.ts # チケット管理サービス
+├── mcp/                 # MCP サーバー実装
+│   ├── server.ts        # スタンドアローンMCPサーバー
+│   ├── http-main.ts     # HTTP MCP サーバー
+│   ├── tools/           # MCP ツール実装
+│   ├── data/            # データアクセス層
+│   └── config/          # MCP設定
 └── types/
     └── index.ts         # TypeScript型定義
 
@@ -159,11 +168,18 @@ public/                  # フロントエンド
 ├── index.html          # メイン画面
 └── app.js              # JavaScript
 
+ssl/                     # SSL証明書（HTTPS使用時）
+├── localhost.crt        # 自己署名証明書
+└── localhost.key        # 秘密鍵
+
 plans/                   # プロジェクト計画書
-└── IMPLEMENTATION_PLAN.md
+└── *.md                # 各種実装計画書
 ```
 
 ## 🔧 API エンドポイント
+
+### システム API
+- `GET /health` - ヘルスチェック（プロトコル判定付き）
 
 ### 認証 API
 - `POST /auth/register` - ユーザー登録
@@ -177,6 +193,11 @@ plans/                   # プロジェクト計画書
 - `POST /api/tickets/:id/reserve` - チケット予約 (要認証)
 - `GET /api/my-reservations` - 予約履歴 (要認証)
 - `DELETE /api/reservations/:id` - 予約キャンセル (要認証)
+
+### MCP API
+- `POST /mcp` - MCP サーバーエンドポイント
+- `GET /mcp/health` - MCP ヘルスチェック
+- `GET /mcp/info` - MCP サーバー情報
 
 ## 🧪 テスト実行
 
@@ -203,22 +224,22 @@ npx playwright test --ui                    # HTTP環境
 npx playwright test --ui --config=playwright-https.config.ts  # HTTPS環境
 ```
 
-### 🔒 HTTPS環境でのテスト
+### 🔒 HTTP/HTTPS 統合アプリケーション
 
-HTTPS環境では以下を分離してテスト：
+**v2.0での改善点:**
+- `app.ts` と `https-app.ts` を統合し、`HTTPS_ENABLED` 環境変数で切り替え
+- `/health` エンドポイントで動的プロトコル判定（HTTP/HTTPS）
+- セキュリティヘッダー、CORS、セッション設定を環境に応じて動的設定
+- GitHub Actions でHTTP/HTTPSテストを分離実行
 
-**一般機能テスト**: `npm run test:https`
-- すべてのアプリケーション機能をHTTPS環境で検証
-- MCPサーバー機能、チケット予約機能、ユーザー認証等
+**HTTPS環境での自動機能:**
+- HTTP→HTTPS 301リダイレクト（ポート3000→3443）
+- HSTS、CSP等のセキュリティヘッダー自動設定
+- セキュアクッキー設定（`secure: true`）
 
-**HTTPS特化機能テスト**: `npm run test:https:specific`
-- HTTPS専用のセキュリティヘッダー（HSTS、CSP等）
-- HTTP→HTTPSリダイレクト
-- プロトコル確認（protocol: "HTTPS"）
-
-**注意**: 
-- HTTPSテストは証明書検証を無視する設定（`ignoreHTTPSErrors: true`）で実行
-- MCPの基本機能テストはHTTP環境で実行し、HTTPS特化機能のみ別途テスト
+**テスト分離:**
+- `test-http`: HTTPS専用テストを除外してHTTP環境で実行
+- `test-https`: SSL証明書生成後にHTTPS専用テストのみ実行
 
 ## 📊 データベース
 
@@ -235,6 +256,24 @@ MySQL 8.0 を使用。`schema.sql` にテーブル定義とサンプルデータ
 
 ```bash
 cp .env.example .env
+```
+
+### 主要な環境変数
+
+```bash
+# サーバー設定
+HTTPS_ENABLED=true          # HTTPS有効化（default: false）
+HTTP_PORT=3000             # HTTPポート（default: 3000）
+HTTPS_PORT=3443            # HTTPSポート（default: 3443）
+SESSION_SECRET=your-secret # セッション秘密鍵
+MCP_ENABLED=true           # MCP機能有効化（default: false）
+
+# データベース設定（MySQL使用時）
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=ticket_service
+DB_USER=root
+DB_PASSWORD=password
 ```
 
 ## 🐛 開発時の注意点
