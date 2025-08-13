@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 
-const BASE_URL = 'http://localhost:3000';
+// Helper function to get base URL from test context
+function getBaseURL(page: any): string {
+  return page.context()._options.baseURL || 'http://localhost:3000';
+}
 
 test.describe('予約機能のテスト', () => {
   let testUsername: string;
@@ -13,7 +16,7 @@ test.describe('予約機能のテスト', () => {
     testUsername = `testuser${timestamp}`;
     testEmail = `test${timestamp}@example.com`;
     
-    await page.goto(BASE_URL);
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
 
     // 新規ユーザー登録
