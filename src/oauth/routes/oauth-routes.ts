@@ -1,6 +1,8 @@
 import express from 'express';
 import { AuthorizationController } from '../controllers/authorization.js';
 import { TokenController } from '../controllers/token.js';
+import { getAuthorizationServerMetadata } from '../controllers/authorization-server-metadata.js';
+import { getProtectedResourceMetadata } from '../controllers/protected-resource-metadata.js';
 import { createAuthleteClient, AuthleteClient } from '../authlete/client.js';
 import { getAuthleteConfig } from '../config/authlete-config.js';
 

@@ -107,7 +107,7 @@ app.use(cors({
   origin: corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Id']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Id', 'mcp-protocol-version']
 }));
 
 app.use(express.json({ limit: '10mb' }));
@@ -132,6 +132,25 @@ app.use(passport.session());
 app.use('/auth', authRoutes);
 app.use('/api', ticketRoutes);
 app.use('/oauth', oauthRoutes);
+
+// OAuth 2.0 Metadata Endpoints (RFC 8414)
+import { getAuthorizationServerMetadata } from './oauth/controllers/authorization-server-metadata.js';
+import { getProtectedResourceMetadata } from './oauth/controllers/protected-resource-metadata.js';
+
+// OAuth 2.0 Authorization Server Metadata with CORS - allow all origins for metadata discovery
+const metadataCorsOptions = {
+  origin: '*',
+  methods: ['GET', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'mcp-protocol-version'],
+  credentials: false  // Public metadata doesn't need credentials
+};
+
+app.get('/.well-known/oauth-authorization-server', cors(metadataCorsOptions), getAuthorizationServerMetadata);
+app.get('/.well-known/oauth-authorization-server/mcp', cors(metadataCorsOptions), getAuthorizationServerMetadata);
+
+// OAuth 2.0 Protected Resource Metadata
+app.get('/.well-known/oauth-protected-resource', getProtectedResourceMetadata);
+app.get('/.well-known/oauth-protected-resource/mcp', getProtectedResourceMetadata);
 
 // テスト用OAuthコールバックエンドポイント
 app.get('/callback', (req, res) => {
@@ -249,8 +268,16 @@ const initializeMCPServer = async (): Promise<void> => {
   // サーバーとトランスポートを接続
   await mcpServer.connect(mcpTransport);
 
-  // MCP エンドポイントを追加
-  app.post('/mcp', async (req, res) => {
+  // OAuth認証ミドルウェアをインポート
+  const { oauthAuthentication } = await import('./oauth/middleware/oauth-middleware.js');
+
+  // MCP エンドポイントを追加（OAuth認証付き）
+  app.post('/mcp', 
+    oauthAuthentication({
+      requiredScopes: ['mcp:tickets:read'], // 基本的な読み取りスコープを要求
+      requireSSL: HTTPS_ENABLED
+    }),
+    async (req, res) => {
     try {
       if (!mcpTransport) {
         return res.status(503).json({

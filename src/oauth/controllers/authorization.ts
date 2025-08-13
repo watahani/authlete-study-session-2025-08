@@ -102,6 +102,19 @@ export class AuthorizationController {
       return;
     }
 
+    console.log('Authlete response debug:', response);
+
+
+    // デバッグ: Authleteレスポンスの内容をログ出力
+    console.log('Authlete response debug:', {
+      ticket: !!response.ticket,
+      client: !!response.client,
+      scopes: response.scopes,
+      scopesType: typeof response.scopes,
+      scopesLength: response.scopes?.length,
+      scopesDetail: response.scopes
+    });
+
     // セッションにOAuth情報を保存
     req.session.oauthTicket = response.ticket;
     req.session.oauthClient = response.client;
