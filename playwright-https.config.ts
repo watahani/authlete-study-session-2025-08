@@ -1,4 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
+import dotenv from 'dotenv';
+
+// .env ファイルを読み込み
+dotenv.config();
 
 /**
  * HTTPS環境専用のPlaywright設定

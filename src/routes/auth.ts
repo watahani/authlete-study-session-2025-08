@@ -4,6 +4,62 @@ import { AuthService } from '../services/AuthService.js';
 
 const router = express.Router();
 
+// ログインページ表示
+router.get('/login', (req, res) => {
+  const { ticket, return_to } = req.query;
+  
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>ログイン - チケット販売サービス</title>
+      <style>
+        body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; }
+        .container { background: #f9f9f9; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .form-group { margin: 15px 0; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; background: #007bff; color: white; padding: 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #0056b3; }
+        .info { background: #e7f3ff; padding: 15px; border-radius: 4px; margin-bottom: 20px; border-left: 4px solid #007bff; }
+        .error { background: #ffe7e7; padding: 15px; border-radius: 4px; margin-bottom: 20px; border-left: 4px solid #dc3545; color: #721c24; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h2>ログイン</h2>
+        ${ticket ? '<div class="info">OAuth認可のためにログインが必要です。</div>' : ''}
+        
+        <form action="/auth/login" method="post">
+          ${ticket ? `<input type="hidden" name="ticket" value="${ticket}">` : ''}
+          ${return_to ? `<input type="hidden" name="return_to" value="${return_to}">` : ''}
+          
+          <div class="form-group">
+            <label for="username">ユーザー名:</label>
+            <input type="text" id="username" name="username" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="password">パスワード:</label>
+            <input type="password" id="password" name="password" required>
+          </div>
+          
+          <button type="submit">ログイン</button>
+        </form>
+        
+        <div style="margin-top: 20px; text-align: center;">
+          <p>テスト用アカウント:</p>
+          <p><strong>ユーザー名:</strong> testuser</p>
+          <p><strong>パスワード:</strong> testpass</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
 router.post('/register', async (req, res) => {
   try {
     const { username, password, email } = req.body;
@@ -21,6 +77,8 @@ router.post('/register', async (req, res) => {
 });
 
 router.post('/login', (req, res, next) => {
+  const { ticket, return_to } = req.body;
+  
   passport.authenticate('local', (err: Error, user: Express.User | false) => {
     if (err) {
       return res.status(500).json({ error: 'Authentication error' });
@@ -32,7 +90,27 @@ router.post('/login', (req, res, next) => {
       if (loginErr) {
         return res.status(500).json({ error: 'Login failed' });
       }
-      return res.json({ message: 'Login successful', user });
+      
+      // セッション保存を確実に行う
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          console.error('Session save error after login:', saveErr);
+          return res.status(500).json({ error: 'Session management failed' });
+        }
+        
+        // OAuth認可フローからのリダイレクト処理
+        if (ticket) {
+          return res.redirect(`/oauth/authorize/consent?ticket=${ticket}`);
+        }
+        
+        // 通常のリダイレクト処理
+        if (return_to) {
+          return res.redirect(return_to);
+        }
+        
+        // デフォルトレスポンス（ホームページにリダイレクト）
+        return res.redirect('/');
+      });
     });
   })(req, res, next);
 });

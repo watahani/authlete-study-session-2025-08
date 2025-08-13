@@ -150,6 +150,18 @@ src/
 ├── routes/               # API ルート
 │   ├── auth.ts          # 認証API
 │   └── tickets.ts       # チケットAPI
+├── oauth/                # OAuth 2.1 認可サーバー実装
+│   ├── authlete/        # Authlete API統合
+│   │   ├── client.ts    # Authlete HTTP クライアント
+│   │   └── types/       # Authlete API型定義
+│   ├── config/          # OAuth設定
+│   │   ├── authlete-config.ts # Authlete接続設定
+│   │   └── oauth-config.ts    # OAuth一般設定
+│   ├── controllers/     # OAuth コントローラー
+│   │   ├── authorization.ts   # 認可エンドポイント
+│   │   └── token.ts          # トークンエンドポイント
+│   └── routes/          # OAuth ルーティング
+│       └── oauth-routes.ts   # OAuth エンドポイント定義
 ├── middleware/
 │   └── auth.ts          # 認証ミドルウェア
 ├── services/            # ビジネスロジック
@@ -182,10 +194,18 @@ plans/                   # プロジェクト計画書
 - `GET /health` - ヘルスチェック（プロトコル判定付き）
 
 ### 認証 API
+- `GET /auth/login` - ログインページ表示
+- `POST /auth/login` - ログイン実行
 - `POST /auth/register` - ユーザー登録
-- `POST /auth/login` - ログイン
 - `POST /auth/logout` - ログアウト
 - `GET /auth/profile` - プロフィール取得
+
+### OAuth 2.1 認可サーバー API
+- `GET /oauth/authorize` - OAuth認可エンドポイント
+- `GET /oauth/authorize/consent` - 認可同意画面
+- `POST /oauth/authorize/decision` - 認可決定処理
+- `POST /oauth/token` - トークンエンドポイント
+- `GET /callback` - OAuth コールバック（テスト用）
 
 ### チケット API
 - `GET /api/tickets` - チケット一覧
@@ -268,6 +288,11 @@ HTTPS_PORT=3443            # HTTPSポート（default: 3443）
 SESSION_SECRET=your-secret # セッション秘密鍵
 MCP_ENABLED=true           # MCP機能有効化（default: false）
 
+# Authlete OAuth設定（HTTPS必須）
+AUTHLETE_SERVICE_ACCESS_TOKEN=your-service-token  # Authlete Service Access Token
+AUTHLETE_SERVICE_ID=your-service-id               # Authlete Service ID  
+AUTHLETE_BASE_URL=https://jp.authlete.com         # Authlete API Base URL
+
 # データベース設定（MySQL使用時）
 DB_HOST=localhost
 DB_PORT=3306
@@ -283,8 +308,72 @@ DB_PASSWORD=password
 - エラーハンドリングは基本的なもののみ
 - バリデーションは最小限
 
+## 🔐 OAuth 2.1 認可サーバー
+
+### 🚀 実装済み機能
+
+- ✅ **OAuth 2.1 準拠認可サーバー** - RFC 6749 & RFC 6819準拠
+- ✅ **Authlete 3.0 API統合** - バックエンドサービスとしてAuthlete APIを利用
+- ✅ **PKCE (RFC 7636)** - 認可コードフローのセキュリティ強化（必須）
+- ✅ **認可コードフロー** - `authorization_code` グラント型のフル実装
+- ✅ **Bearer Token認証** - Service Access Tokenによる安全なAPI通信
+- ✅ **セッション管理** - OAuth状態の適切な管理とクリーンアップ
+- ✅ **同意画面** - ユーザーによる認可決定のUI実装
+- ✅ **HTTPS必須** - 全OAuth通信の暗号化
+
+### 🔄 OAuth認可フロー
+
+1. **認可リクエスト** (`/oauth/authorize`)
+   - クライアントがユーザーの認可を要求
+   - PKCE パラメータ (`code_challenge`, `code_challenge_method`) 必須
+   - Authleteで認可リクエスト検証
+
+2. **ユーザー認証**
+   - 未認証ユーザーをログインページにリダイレクト
+   - セッションベース認証でユーザー確認
+
+3. **同意画面表示** (`/oauth/authorize/consent`)
+   - 要求されたスコープの確認
+   - ユーザーの明示的な同意取得
+
+4. **認可決定** (`/oauth/authorize/decision`)
+   - 許可/拒否の処理
+   - 認可コード発行またはエラーレスポンス
+
+5. **トークン交換** (`/oauth/token`)
+   - 認可コードをアクセストークンに交換
+   - PKCE検証による追加セキュリティ
+
+### 🧪 テスト環境
+
+```bash
+# OAuth テスト専用コマンド
+npx playwright test tests/oauth-authorization-code-flow.spec.ts --config playwright-https.config.ts
+
+# デバッグモード
+npx playwright test tests/debug-oauth-flow.spec.ts --config playwright-https.config.ts
+```
+
+### 📊 Authlete 設定情報
+
+プロジェクトでは以下のクライアントが設定済み：
+
+- **テスト用機密クライアント**: `2701499366`
+- **MCP用パブリッククライアント**: `3006291287`
+- **サービス**: `2522876029`
+
+設定の詳細は `.env` ファイルを参照してください。
+
+### 🔒 セキュリティ機能
+
+- **HTTPS強制**: OAuth通信の全暗号化
+- **PKCE必須**: 認可コードインターセプト攻撃対策
+- **セッション保護**: CSRF攻撃対策
+- **秘密情報保護**: トークン・認可コード等の適切な管理
+- **状態検証**: OAuth状態パラメータによるCSRF保護
+
 ## 📝 次のステップ
 
-1. MCP サーバーの実装
-2. OAuth 認可サーバーの構築
-3. MCP サーバーとの統合
+1. ✅ ~~MCP サーバーの実装~~
+2. ✅ ~~OAuth 認可サーバーの構築~~  
+3. 🔄 **MCP サーバーとの統合** - OAuth保護されたMCPエンドポイントの実装

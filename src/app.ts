@@ -19,6 +19,7 @@ import { MockDatabaseConfig as DatabaseConfig } from './config/mock-database.js'
 import { AuthService } from './services/AuthService.js';
 import { authRoutes } from './routes/auth.js';
 import { ticketRoutes } from './routes/tickets.js';
+import { oauthRoutes } from './oauth/routes/oauth-routes.js';
 import { TicketTools } from './mcp/tools/ticket-tools.js';
 import { 
   listTicketsToolSchema,
@@ -65,7 +66,8 @@ const helmetConfig: any = {
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      scriptSrcAttr: ["'unsafe-inline'"],
       connectSrc: ["'self'", "https:", "wss:"],
       imgSrc: ["'self'", "data:", "https:"],
     },
@@ -129,6 +131,45 @@ app.use(passport.session());
 
 app.use('/auth', authRoutes);
 app.use('/api', ticketRoutes);
+app.use('/oauth', oauthRoutes);
+
+// テスト用OAuthコールバックエンドポイント
+app.get('/callback', (req, res) => {
+  const { code, error, error_description, state } = req.query;
+  
+  if (error) {
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="ja">
+      <head>
+        <meta charset="UTF-8">
+        <title>OAuth Error</title>
+      </head>
+      <body>
+        <h1>OAuth Authorization Error</h1>
+        <p><strong>Error:</strong> ${error}</p>
+        <p><strong>Description:</strong> ${error_description || 'No description provided'}</p>
+        <p><strong>State:</strong> ${state || 'No state provided'}</p>
+      </body>
+      </html>
+    `);
+  } else {
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="ja">
+      <head>
+        <meta charset="UTF-8">
+        <title>OAuth Success</title>
+      </head>
+      <body>
+        <h1>OAuth Authorization Success</h1>
+        <p><strong>Authorization Code:</strong> ${code}</p>
+        <p><strong>State:</strong> ${state || 'No state provided'}</p>
+      </body>
+      </html>
+    `);
+  }
+});
 
 app.get('/', (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
