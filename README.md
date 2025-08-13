@@ -184,15 +184,41 @@ plans/                   # プロジェクト計画書
 # データベースを起動
 docker-compose up -d
 
-# アプリケーションを起動
-npm run dev
-
-# 別ターミナルでテスト実行
+# すべてのテスト実行（HTTP環境）
 npm test
 
+# HTTP環境でのテスト実行
+npm run test:http
+
+# HTTPS環境でのテスト実行（SSL証明書生成後）
+npm run generate-ssl  # 初回のみ
+npm run test:https
+
+# MCP専用テスト
+npm run test:mcp              # HTTP環境でのMCPテスト
+npm run test:https:specific   # HTTPS特化機能テスト（リダイレクト、セキュリティヘッダー等）
+
 # UI モードでテスト実行
-npx playwright test --ui
+npx playwright test --ui                    # HTTP環境
+npx playwright test --ui --config=playwright-https.config.ts  # HTTPS環境
 ```
+
+### 🔒 HTTPS環境でのテスト
+
+HTTPS環境では以下を分離してテスト：
+
+**一般機能テスト**: `npm run test:https`
+- すべてのアプリケーション機能をHTTPS環境で検証
+- MCPサーバー機能、チケット予約機能、ユーザー認証等
+
+**HTTPS特化機能テスト**: `npm run test:https:specific`
+- HTTPS専用のセキュリティヘッダー（HSTS、CSP等）
+- HTTP→HTTPSリダイレクト
+- プロトコル確認（protocol: "HTTPS"）
+
+**注意**: 
+- HTTPSテストは証明書検証を無視する設定（`ignoreHTTPSErrors: true`）で実行
+- MCPの基本機能テストはHTTP環境で実行し、HTTPS特化機能のみ別途テスト
 
 ## 📊 データベース
 

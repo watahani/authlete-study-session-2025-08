@@ -6,14 +6,20 @@ function parseSSEResponse(text: string): any {
   return eventData ? JSON.parse(eventData) : null;
 }
 
+// Helper function to get base URL from test context
+function getBaseURL(page: any): string {
+  return page.context()._options.baseURL || 'http://localhost:3000';
+}
+
 test.describe('MCP Server Tests', () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async () => {
     // MCPが有効な状態でテスト実行
     process.env.MCP_ENABLED = 'true';
   });
 
   test('MCP health endpoint returns 200', async ({ page }) => {
-    const response = await page.request.get('http://localhost:3000/mcp/health');
+    const baseURL = getBaseURL(page);
+    const response = await page.request.get(`${baseURL}/mcp/health`);
     expect(response.status()).toBe(200);
     
     const healthData = await response.json();
@@ -21,7 +27,8 @@ test.describe('MCP Server Tests', () => {
   });
 
   test('MCP info endpoint returns server information', async ({ page }) => {
-    const response = await page.request.get('http://localhost:3000/mcp/info');
+    const baseURL = getBaseURL(page);
+    const response = await page.request.get(`${baseURL}/mcp/info`);
     expect(response.status()).toBe(200);
     
     const info = await response.json();
@@ -31,6 +38,7 @@ test.describe('MCP Server Tests', () => {
   });
 
   test('MCP tools endpoint returns available tools', async ({ page }) => {
+    const baseURL = getBaseURL(page);
     const toolsRequest = {
       jsonrpc: '2.0',
       id: 1,
@@ -38,7 +46,7 @@ test.describe('MCP Server Tests', () => {
       params: {}
     };
 
-    const response = await page.request.post('http://localhost:3000/mcp', {
+    const response = await page.request.post(`${baseURL}/mcp`, {
       data: JSON.stringify(toolsRequest),
       headers: {
         'Content-Type': 'application/json',
@@ -65,6 +73,7 @@ test.describe('MCP Server Tests', () => {
   });
 
   test('list_tickets tool returns ticket data', async ({ page }) => {
+    const baseURL = getBaseURL(page);
     const toolCallRequest = {
       jsonrpc: '2.0',
       id: 2,
@@ -77,7 +86,7 @@ test.describe('MCP Server Tests', () => {
       }
     };
 
-    const response = await page.request.post('http://localhost:3000/mcp', {
+    const response = await page.request.post(`${baseURL}/mcp`, {
       data: JSON.stringify(toolCallRequest),
       headers: {
         'Content-Type': 'application/json',
@@ -97,6 +106,7 @@ test.describe('MCP Server Tests', () => {
   });
 
   test('search_tickets tool with filters returns filtered results', async ({ page }) => {
+    const baseURL = getBaseURL(page);
     const toolCallRequest = {
       jsonrpc: '2.0',
       id: 3,
@@ -110,7 +120,7 @@ test.describe('MCP Server Tests', () => {
       }
     };
 
-    const response = await page.request.post('http://localhost:3000/mcp', {
+    const response = await page.request.post(`${baseURL}/mcp`, {
       data: JSON.stringify(toolCallRequest),
       headers: {
         'Content-Type': 'application/json',
@@ -132,6 +142,7 @@ test.describe('MCP Server Tests', () => {
   });
 
   test('reserve_ticket tool without user context returns error', async ({ page }) => {
+    const baseURL = getBaseURL(page);
     const toolCallRequest = {
       jsonrpc: '2.0',
       id: 4,
@@ -145,7 +156,7 @@ test.describe('MCP Server Tests', () => {
       }
     };
 
-    const response = await page.request.post('http://localhost:3000/mcp', {
+    const response = await page.request.post(`${baseURL}/mcp`, {
       data: JSON.stringify(toolCallRequest),
       headers: {
         'Content-Type': 'application/json',
@@ -163,6 +174,7 @@ test.describe('MCP Server Tests', () => {
   });
 
   test('get_user_reservations tool without user context returns error', async ({ page }) => {
+    const baseURL = getBaseURL(page);
     const toolCallRequest = {
       jsonrpc: '2.0',
       id: 5,
@@ -173,7 +185,7 @@ test.describe('MCP Server Tests', () => {
       }
     };
 
-    const response = await page.request.post('http://localhost:3000/mcp', {
+    const response = await page.request.post(`${baseURL}/mcp`, {
       data: JSON.stringify(toolCallRequest),
       headers: {
         'Content-Type': 'application/json',
@@ -191,6 +203,7 @@ test.describe('MCP Server Tests', () => {
   });
 
   test('invalid tool name returns error', async ({ page }) => {
+    const baseURL = getBaseURL(page);
     const toolCallRequest = {
       jsonrpc: '2.0',
       id: 6,
@@ -201,7 +214,7 @@ test.describe('MCP Server Tests', () => {
       }
     };
 
-    const response = await page.request.post('http://localhost:3000/mcp', {
+    const response = await page.request.post(`${baseURL}/mcp`, {
       data: JSON.stringify(toolCallRequest),
       headers: {
         'Content-Type': 'application/json',
