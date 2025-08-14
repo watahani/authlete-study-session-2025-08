@@ -46,13 +46,6 @@ export default defineConfig({
       name: 'oauth-tests',
       use: { ...devices['Desktop Chrome'] },
       testMatch: ['**/oauth-*.spec.ts'],
-      webServer: {
-        command: 'MCP_OAUTH_ENABLED=true npm run dev:https',
-        url: 'https://localhost:3443',
-        reuseExistingServer: true,
-        timeout: 120 * 1000,
-        ignoreHTTPSErrors: true,
-      },
     },
 
     // {
@@ -102,7 +95,7 @@ export default defineConfig({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'npm run dev:https',
+    command: 'MCP_OAUTH_ENABLED=false npm run dev:https',
     url: 'https://localhost:3443',
     reuseExistingServer: true,
     timeout: 120 * 1000,
