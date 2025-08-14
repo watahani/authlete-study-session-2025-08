@@ -13,7 +13,7 @@ function generateCodeChallenge(codeVerifier: string): string {
 test.describe('OAuth 2.1 Public Client Token Flow', () => {
   const baseUrl = 'https://localhost:3443';
   const clientId = '3006291287';
-  const redirectUri = 'https://localhost:6274/oauth/callback';
+  const redirectUri = 'https://httpbin.org/anything';
 
   test('Complete OAuth 2.1 flow with PKCE for public client', async ({ page }) => {
     // ブラウザコンソールログを収集
@@ -155,6 +155,17 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
         
       } catch (error) {
         console.log('Button click failed:', error);
+      }
+      
+      // URLから直接authorization codeを抽出
+      await page.waitForTimeout(3000);
+      const finalUrl = page.url();
+      console.log('Final URL after consent:', finalUrl);
+      
+      if (finalUrl.includes('code=')) {
+        const urlParams = new URL(finalUrl);
+        authorizationCode = urlParams.searchParams.get('code');
+        state = urlParams.searchParams.get('state');
       }
     } else if (loginCurrentUrl.includes('/auth/login')) {
       // まだログインページにいる場合は、認証が失敗している可能性
