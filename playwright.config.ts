@@ -97,8 +97,12 @@ export default defineConfig({
   webServer: {
     command: 'MCP_OAUTH_ENABLED=false npm run dev:https',
     url: 'https://localhost:3443',
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.CI, // CI環境では既存サーバーを再利用しない
     timeout: 120 * 1000,
     ignoreHTTPSErrors: true,
+    env: {
+      MCP_OAUTH_ENABLED: 'false',
+      NODE_ENV: 'test'
+    }
   },
 });
