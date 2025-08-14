@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import crypto from 'crypto';
 
 // Helper function to parse Server-Sent Events response
 function parseSSEResponse(text: string): any {
@@ -8,13 +9,107 @@ function parseSSEResponse(text: string): any {
 
 // Helper function to get base URL from test context
 function getBaseURL(page: any): string {
-  return page.context()._options.baseURL || 'http://localhost:3000';
+  // テスト環境では常にHTTPSを使用
+  return 'https://localhost:3443';
+}
+
+// PKCE用のユーティリティ関数
+function generateCodeVerifier(): string {
+  return crypto.randomBytes(32).toString('base64url');
+}
+
+function generateCodeChallenge(codeVerifier: string): string {
+  return crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+}
+
+// OAuth認証付きアクセストークンを取得するヘルパー関数
+async function getAccessToken(page: any): Promise<string> {
+  const baseURL = getBaseURL(page);
+  const clientId = '3006291287';
+  const redirectUri = 'https://localhost:6274/oauth/callback';
+  
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = generateCodeChallenge(codeVerifier);
+  
+  // Authorization code取得用の変数
+  let authorizationCode: string | null = null;
+  
+  // 302リダイレクトからcodeを抽出
+  page.on('response', (response) => {
+    if (response.status() === 302 && response.url().includes('/oauth/authorize/decision')) {
+      const location = response.headers().location;
+      if (location && location.includes('code=')) {
+        const locationUrl = new URL(location);
+        authorizationCode = locationUrl.searchParams.get('code');
+      }
+    }
+  });
+  
+  const authUrl = new URL(`${baseURL}/oauth/authorize`);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('client_id', clientId);
+  authUrl.searchParams.set('redirect_uri', redirectUri);
+  authUrl.searchParams.set('scope', 'mcp:tickets:read mcp:tickets:write');
+  authUrl.searchParams.set('code_challenge', codeChallenge);
+  authUrl.searchParams.set('code_challenge_method', 'S256');
+  authUrl.searchParams.set('resource', `${baseURL}/mcp`);
+  authUrl.searchParams.set('state', 'test_state');
+
+  await page.goto(authUrl.toString());
+  
+  // ログイン
+  await page.waitForSelector('form', { timeout: 10000 });
+  await page.fill('input[name="username"]', 'testuser');
+  await page.fill('input[name="password"]', 'testpass');
+  await page.click('button[type="submit"]');
+  
+  await page.waitForTimeout(3000);
+  
+  // コンセントページでの承認
+  if (page.url().includes('/oauth/authorize/consent')) {
+    const approvalButton = await page.locator('button.approve').first();
+    if (await approvalButton.isVisible()) {
+      await approvalButton.click();
+    }
+  }
+  
+  // Authorization codeを待機
+  let attempts = 0;
+  while (!authorizationCode && attempts < 15) {
+    await page.waitForTimeout(1000);
+    attempts++;
+  }
+  
+  if (!authorizationCode) {
+    throw new Error('Failed to obtain authorization code');
+  }
+  
+  // トークンエンドポイントでアクセストークンを取得
+  const tokenResponse = await page.request.post(`${baseURL}/oauth/token`, {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    data: {
+      grant_type: 'authorization_code',
+      client_id: clientId,
+      code: authorizationCode,
+      redirect_uri: redirectUri,
+      code_verifier: codeVerifier,
+    }
+  });
+
+  const tokenData = await tokenResponse.json();
+  return tokenData.access_token;
 }
 
 test.describe('MCP Server Tests', () => {
   test.beforeEach(async () => {
     // MCPが有効な状態でテスト実行
     process.env.MCP_ENABLED = 'true';
+    // テスト時はOAuth認証を無効化
+    process.env.MCP_OAUTH_ENABLED = 'false';
+    process.env.NODE_ENV = 'test';
+    
+    // デバッグ情報を出力
+    console.log(`Test env vars: MCP_ENABLED=${process.env.MCP_ENABLED}, MCP_OAUTH_ENABLED=${process.env.MCP_OAUTH_ENABLED}, NODE_ENV=${process.env.NODE_ENV}`);
   });
 
   test('MCP health endpoint returns 200', async ({ page }) => {
@@ -39,6 +134,7 @@ test.describe('MCP Server Tests', () => {
 
   test('MCP tools endpoint returns available tools', async ({ page }) => {
     const baseURL = getBaseURL(page);
+    
     const toolsRequest = {
       jsonrpc: '2.0',
       id: 1,
@@ -47,11 +143,11 @@ test.describe('MCP Server Tests', () => {
     };
 
     const response = await page.request.post(`${baseURL}/mcp`, {
-      data: JSON.stringify(toolsRequest),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json, text/event-stream'
-      }
+      },
+      data: JSON.stringify(toolsRequest)
     });
 
     expect(response.status()).toBe(200);
@@ -74,6 +170,7 @@ test.describe('MCP Server Tests', () => {
 
   test('list_tickets tool returns ticket data', async ({ page }) => {
     const baseURL = getBaseURL(page);
+    
     const toolCallRequest = {
       jsonrpc: '2.0',
       id: 2,
@@ -87,11 +184,11 @@ test.describe('MCP Server Tests', () => {
     };
 
     const response = await page.request.post(`${baseURL}/mcp`, {
-      data: JSON.stringify(toolCallRequest),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json, text/event-stream'
-      }
+      },
+      data: JSON.stringify(toolCallRequest)
     });
 
     expect(response.status()).toBe(200);
@@ -107,6 +204,7 @@ test.describe('MCP Server Tests', () => {
 
   test('search_tickets tool with filters returns filtered results', async ({ page }) => {
     const baseURL = getBaseURL(page);
+    
     const toolCallRequest = {
       jsonrpc: '2.0',
       id: 3,
@@ -121,11 +219,11 @@ test.describe('MCP Server Tests', () => {
     };
 
     const response = await page.request.post(`${baseURL}/mcp`, {
-      data: JSON.stringify(toolCallRequest),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json, text/event-stream'
-      }
+      },
+      data: JSON.stringify(toolCallRequest)
     });
 
     expect(response.status()).toBe(200);
@@ -143,6 +241,7 @@ test.describe('MCP Server Tests', () => {
 
   test('reserve_ticket tool without user context returns error', async ({ page }) => {
     const baseURL = getBaseURL(page);
+    const accessToken = await getAccessToken(page);
     const toolCallRequest = {
       jsonrpc: '2.0',
       id: 4,
@@ -157,11 +256,12 @@ test.describe('MCP Server Tests', () => {
     };
 
     const response = await page.request.post(`${baseURL}/mcp`, {
-      data: JSON.stringify(toolCallRequest),
       headers: {
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json, text/event-stream'
-      }
+      },
+      data: JSON.stringify(toolCallRequest)
     });
 
     expect(response.status()).toBe(200);

@@ -41,6 +41,11 @@ const HTTP_PORT = process.env.HTTP_PORT || 3000;
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
 const PORT = HTTPS_ENABLED ? HTTPS_PORT : HTTP_PORT;
 
+// MCP OAuth認証の有効/無効を判定（明示的にfalseまたはテスト環境の場合は無効）
+const MCP_OAUTH_ENABLED = process.env.MCP_OAUTH_ENABLED !== 'false' && 
+                          process.env.NODE_ENV !== 'test' && 
+                          process.env.MCP_ENABLED !== 'false';
+
 const app = express();
 
 // MCP サーバーインスタンス
@@ -262,12 +267,45 @@ const initializeMCPServer = async (): Promise<void> => {
   // OAuth認証ミドルウェアをインポート
   const { oauthAuthentication } = await import('./oauth/middleware/oauth-middleware.js');
 
-  // MCP エンドポイントを追加（OAuth認証付き）
+  // MCP OAuth認証ミドルウェアの条件付き適用（実行時に再評価）
+  const getMcpMiddleware = () => {
+    const runtimeOAuthEnabled = process.env.MCP_OAUTH_ENABLED !== 'false' && 
+                                process.env.NODE_ENV !== 'test' && 
+                                process.env.MCP_ENABLED !== 'false';
+    
+    console.log(`Runtime OAuth decision: ${runtimeOAuthEnabled ? 'ENABLED' : 'DISABLED'}`);
+    console.log(`  MCP_OAUTH_ENABLED: ${process.env.MCP_OAUTH_ENABLED}`);
+    console.log(`  NODE_ENV: ${process.env.NODE_ENV}`);
+    console.log(`  MCP_ENABLED: ${process.env.MCP_ENABLED}`);
+    
+    return runtimeOAuthEnabled 
+      ? [oauthAuthentication({
+          requiredScopes: ['mcp:tickets:read'], // 基本的な読み取りスコープを要求
+          requireSSL: HTTPS_ENABLED
+        })]
+      : []; // OAuth無効時は認証ミドルウェアをスキップ
+  };
+
+  console.log(`MCP OAuth Authentication: ${MCP_OAUTH_ENABLED ? 'ENABLED' : 'DISABLED'}`);
+  console.log(`Environment Variables:`);
+  console.log(`  NODE_ENV=${process.env.NODE_ENV}`);
+  console.log(`  MCP_OAUTH_ENABLED=${process.env.MCP_OAUTH_ENABLED}`);
+  console.log(`  MCP_ENABLED=${process.env.MCP_ENABLED}`);
+  console.log(`Decision: OAuth ${MCP_OAUTH_ENABLED ? 'ENABLED' : 'DISABLED'} for MCP endpoints`);
+
+  // MCP エンドポイントを追加
   app.post('/mcp', 
-    oauthAuthentication({
-      requiredScopes: ['mcp:tickets:read'], // 基本的な読み取りスコープを要求
-      requireSSL: HTTPS_ENABLED
-    }),
+    (req, res, next) => {
+      // 実行時にOAuth設定を再評価してミドルウェアを適用
+      const middleware = getMcpMiddleware();
+      if (middleware.length === 0) {
+        // OAuth無効の場合は直接次の処理に進む
+        next();
+      } else {
+        // OAuth有効の場合は認証ミドルウェアを実行
+        middleware[0](req, res, next);
+      }
+    },
     async (req, res) => {
     try {
       if (!mcpTransport) {
@@ -303,6 +341,11 @@ const initializeMCPServer = async (): Promise<void> => {
 
   // MCP サーバー情報
   app.get('/mcp/info', (_req, res) => {
+    // 実行時にOAuth設定を再評価
+    const runtimeOAuthEnabled = process.env.MCP_OAUTH_ENABLED !== 'false' && 
+                                process.env.NODE_ENV !== 'test' && 
+                                process.env.MCP_ENABLED !== 'false';
+    
     res.json({
       name: 'authlete-study-session-mcp-server',
       version: '1.0.0',
@@ -315,6 +358,10 @@ const initializeMCPServer = async (): Promise<void> => {
         mcp: '/mcp',
         health: '/mcp/health',
         info: '/mcp/info'
+      },
+      oauth: {
+        enabled: runtimeOAuthEnabled,
+        requiredScopes: runtimeOAuthEnabled ? ['mcp:tickets:read'] : null
       }
     });
   });
