@@ -154,8 +154,14 @@ router.post('/login', (req, res, next) => {
           return res.redirect(return_to);
         }
         
-        // デフォルトレスポンス（ホームページにリダイレクト）
-        return res.redirect('/');
+        // JSON APIレスポンス（フロントエンド用）
+        return res.json({ 
+          message: 'Login successful',
+          user: {
+            username: (user as any).username,
+            id: (user as any).id
+          }
+        });
       });
     });
   })(req, res, next);
