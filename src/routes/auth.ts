@@ -79,6 +79,20 @@ router.post('/register', async (req, res) => {
 router.post('/login', (req, res, next) => {
   const { ticket, return_to } = req.body;
   
+  // ログイン前のOAuthデータを保存
+  const preservedOAuthData = {
+    oauthTicket: req.session.oauthTicket,
+    oauthClient: req.session.oauthClient,
+    oauthScopes: req.session.oauthScopes
+  };
+  
+  console.log('Preserving OAuth data before login:', {
+    sessionId: req.session.id,
+    hasTicket: !!preservedOAuthData.oauthTicket,
+    hasClient: !!preservedOAuthData.oauthClient,
+    hasScopes: !!preservedOAuthData.oauthScopes
+  });
+  
   passport.authenticate('local', (err: Error, user: Express.User | false) => {
     if (err) {
       return res.status(500).json({ error: 'Authentication error' });
@@ -91,6 +105,31 @@ router.post('/login', (req, res, next) => {
         return res.status(500).json({ error: 'Login failed' });
       }
       
+      // OAuthデータを復元
+      if (preservedOAuthData.oauthTicket) {
+        req.session.oauthTicket = preservedOAuthData.oauthTicket;
+        req.session.oauthClient = preservedOAuthData.oauthClient;
+        req.session.oauthScopes = preservedOAuthData.oauthScopes;
+        console.log('OAuth data restored after login:', {
+          sessionId: req.session.id,
+          oauthTicket: req.session.oauthTicket,
+          hasClient: !!req.session.oauthClient,
+          hasScopes: !!req.session.oauthScopes
+        });
+      }
+      
+      // ログイン前のセッションデバッグ
+      console.log('Login success - Session debug:', {
+        sessionId: req.session.id,
+        ticket: ticket,
+        hasOAuthData: {
+          oauthTicket: !!req.session.oauthTicket,
+          oauthClient: !!req.session.oauthClient,
+          oauthScopes: !!req.session.oauthScopes
+        },
+        allSessionKeys: Object.keys(req.session)
+      });
+      
       // セッション保存を確実に行う
       req.session.save((saveErr) => {
         if (saveErr) {
@@ -98,8 +137,15 @@ router.post('/login', (req, res, next) => {
           return res.status(500).json({ error: 'Session management failed' });
         }
         
+        console.log('Session saved after login - OAuth data preserved:', {
+          oauthTicket: !!req.session.oauthTicket,
+          oauthClient: !!req.session.oauthClient,
+          oauthScopes: !!req.session.oauthScopes
+        });
+        
         // OAuth認可フローからのリダイレクト処理
         if (ticket) {
+          console.log('Redirecting to consent with ticket:', ticket);
           return res.redirect(`/oauth/authorize/consent?ticket=${ticket}`);
         }
         

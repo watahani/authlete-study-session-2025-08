@@ -20,7 +20,6 @@ export const getAuthorizationServerMetadata = async (req: Request, res: Response
     // Authlete から取得したメタデータにMCP向けスコープを追加
     const extendedMetadata = {
       ...serviceMetadata,
-      "code_challenge_methods_supported": ["S256"]
     };
 
     res.set('Content-Type', 'application/json');

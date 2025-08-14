@@ -60,18 +60,10 @@ const checkSSLCertificates = (): boolean => {
   }
 };
 
+// TODO: CSPの無効化は一時的な対処法です。OAuth consent formの問題を根本的に解決する必要があります
 // セキュリティヘッダー（HTTPS/HTTPに応じて設定）
 const helmetConfig: any = {
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-      scriptSrcAttr: ["'unsafe-inline'"],
-      connectSrc: ["'self'", "https:", "wss:"],
-      imgSrc: ["'self'", "data:", "https:"],
-    },
-  },
+  contentSecurityPolicy: false, // CSPを完全に無効化
   crossOriginEmbedderPolicy: false
 };
 
@@ -146,7 +138,6 @@ const metadataCorsOptions = {
 };
 
 app.get('/.well-known/oauth-authorization-server', cors(metadataCorsOptions), getAuthorizationServerMetadata);
-app.get('/.well-known/oauth-authorization-server/mcp', cors(metadataCorsOptions), getAuthorizationServerMetadata);
 
 // OAuth 2.0 Protected Resource Metadata
 app.get('/.well-known/oauth-protected-resource', getProtectedResourceMetadata);

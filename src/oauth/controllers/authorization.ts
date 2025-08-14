@@ -115,10 +115,22 @@ export class AuthorizationController {
       scopesDetail: response.scopes
     });
 
+    // セッション情報の保存前デバッグ
+    console.log('Before session save - Session ID:', req.session.id);
+    console.log('Before session save - Current user:', !!req.user);
+    console.log('Before session save - Ticket to save:', response.ticket);
+    
     // セッションにOAuth情報を保存
     req.session.oauthTicket = response.ticket;
     req.session.oauthClient = response.client;
     req.session.oauthScopes = response.scopes;
+
+    // 保存直後の確認
+    console.log('After assignment - Session OAuth data:', {
+      oauthTicket: req.session.oauthTicket,
+      oauthClient: !!req.session.oauthClient,
+      oauthScopes: !!req.session.oauthScopes
+    });
 
     // セッション保存を確実に行う
     req.session.save((err) => {
@@ -130,10 +142,15 @@ export class AuthorizationController {
         });
         return;
       }
+      
+      console.log('Session saved successfully - redirecting...');
+      console.log('Session ID after save:', req.session.id);
 
       if (req.user) {
+        console.log('User authenticated, redirecting to consent');
         res.redirect(`/oauth/authorize/consent?ticket=${response.ticket}`);
       } else {
+        console.log('User not authenticated, redirecting to login');
         res.redirect(`/auth/login?ticket=${response.ticket}&return_to=${encodeURIComponent(req.originalUrl)}`);
       }
     });

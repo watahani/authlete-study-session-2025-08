@@ -49,6 +49,48 @@ npx playwright test --ui
 
 # テスト結果のレポート表示
 npx playwright show-report
+
+# HTTPS モードでの開発サーバー起動
+npm run dev:https
+```
+
+## デバッグ方法
+
+### Playwright テストデバッグ
+
+Playwright テスト内でブラウザのコンソールログ、ネットワークエラー、リクエスト失敗を収集するには以下のコードを追加する：
+
+```typescript
+test('テスト名', async ({ page }) => {
+  // ブラウザコンソールログを収集
+  page.on('console', msg => {
+    const type = msg.type();
+    const text = msg.text();
+    console.log(`[BROWSER ${type.toUpperCase()}] ${text}`);
+  });
+  
+  // ネットワークエラーやレスポンス失敗を収集
+  page.on('response', response => {
+    if (!response.ok()) {
+      console.log(`[NETWORK ERROR] ${response.status()} ${response.url()}`);
+    }
+  });
+  
+  page.on('requestfailed', request => {
+    console.log(`[REQUEST FAILED] ${request.method()} ${request.url()} - ${request.failure()?.errorText}`);
+  });
+  
+  // テストコード
+});
+```
+
+### サーバーサイドデバッグ
+
+サーバーログはバックグラウンドで実行中の開発サーバーから確認できる：
+
+```bash
+# バックグラウンドで実行中の npm run dev:https のログを確認
+# BashOutput ツールを使用してリアルタイムログを取得
 ```
 
 ## Git ワークフロー

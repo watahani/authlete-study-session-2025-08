@@ -1,8 +1,6 @@
 import express from 'express';
 import { AuthorizationController } from '../controllers/authorization.js';
 import { TokenController } from '../controllers/token.js';
-import { getAuthorizationServerMetadata } from '../controllers/authorization-server-metadata.js';
-import { getProtectedResourceMetadata } from '../controllers/protected-resource-metadata.js';
 import { createAuthleteClient, AuthleteClient } from '../authlete/client.js';
 import { getAuthleteConfig } from '../config/authlete-config.js';
 
@@ -49,6 +47,17 @@ router.post('/token', (req, res) => {
 router.get('/authorize/consent', (req, res) => {
   const { ticket } = req.query;
   const { oauthTicket, oauthClient, oauthScopes } = req.session;
+  
+  // セッションデバッグ情報
+  console.log('Consent page session debug:', {
+    sessionId: req.session.id,
+    queryTicket: ticket,
+    sessionTicket: oauthTicket,
+    hasClient: !!oauthClient,
+    hasScopes: !!oauthScopes,
+    user: !!req.user,
+    allSessionKeys: Object.keys(req.session)
+  });
 
   // セッション情報の検証
   if (!oauthTicket || !oauthClient || !oauthScopes) {
@@ -129,10 +138,36 @@ router.get('/authorize/consent', (req, res) => {
 });
 
 router.post('/authorize/decision', async (req, res) => {
+  console.log('=== DECISION ENDPOINT CALLED ===');
+  console.log('Request method:', req.method);
+  console.log('Request URL:', req.url);
+  console.log('Request headers:', JSON.stringify(req.headers, null, 2));
+  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  console.log('Session ID:', req.session.id);
+  console.log('User:', req.user ? 'authenticated' : 'not authenticated');
+  console.log('================================');
+  
+  console.log('Decision endpoint called with:', {
+    body: req.body,
+    method: req.method,
+    url: req.url
+  });
+  
   try {
     const { ticket, authorized } = req.body;
     const user = req.user as any;
     const { oauthTicket, oauthClient, oauthScopes } = req.session;
+    
+    console.log('Decision processing:', {
+      ticket: ticket,
+      authorized: authorized,
+      hasUser: !!user,
+      sessionData: {
+        oauthTicket: oauthTicket,
+        hasClient: !!oauthClient,
+        hasScopes: !!oauthScopes
+      }
+    });
 
     // セッション情報とticketの検証
     if (!ticket || !user || !oauthTicket || !oauthClient || !oauthScopes) {
