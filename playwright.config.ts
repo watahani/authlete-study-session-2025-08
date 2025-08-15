@@ -42,11 +42,6 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
       testIgnore: ['**/oauth-*.spec.ts'],
     },
-    {
-      name: 'oauth-tests',
-      use: { ...devices['Desktop Chrome'] },
-      testMatch: ['**/oauth-*.spec.ts'],
-    },
 
     // {
     //   name: 'firefox',

@@ -14,6 +14,7 @@
     "mcp-server": "tsx src/mcp/server.ts",
     "mcp-http": "tsx src/mcp/http-main.ts",
     "test": "npx playwright test",
+    "test:oauth": "npx playwright test --config=playwright.oauth.config.ts",
     "test:http": "npx playwright test --project=chromium",
     "test:https": "npx playwright test --config=playwright-https.config.ts",
     "test:mcp": "npx playwright test tests/mcp-server.spec.ts --project=chromium",

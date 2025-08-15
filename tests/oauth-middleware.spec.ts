@@ -6,10 +6,16 @@ test.describe('OAuth Authentication Middleware', () => {
 
   test('MCP endpoint requires OAuth authentication', async ({ page }) => {
     const response = await page.request.post(`${baseUrl}/mcp`, {
-      data: {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream'
+      },
+      data: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
         method: 'tools/list',
         params: {}
-      }
+      })
     });
     
     expect(response.status()).toBe(401);
@@ -25,12 +31,13 @@ test.describe('OAuth Authentication Middleware', () => {
   test('Invalid bearer token returns proper error', async ({ page }) => {
     const response = await page.request.post(`${baseUrl}/mcp`, {
       headers: {
-        'Authorization': 'Bearer invalid_token_here'
+        'Authorization': 'Bearer invalid_token_here',
+        'Content-Type': 'application/json'
       },
-      data: {
+      data: JSON.stringify({
         method: 'tools/list',
         params: {}
-      }
+      })
     });
     
     expect(response.status()).toBe(401);
@@ -44,10 +51,16 @@ test.describe('OAuth Authentication Middleware', () => {
 
   test('Bearer token in query parameter is rejected (OAuth 2.1 compliance)', async ({ page }) => {
     const response = await page.request.post(`${baseUrl}/mcp?access_token=some_token`, {
-      data: {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream'
+      },
+      data: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
         method: 'tools/list',
         params: {}
-      }
+      })
     });
     
     // OAuth 2.1では、クエリパラメータでのトークン送信は許可されない
@@ -58,11 +71,16 @@ test.describe('OAuth Authentication Middleware', () => {
 
   test('Bearer token in request body is rejected (OAuth 2.1 compliance)', async ({ page }) => {
     const response = await page.request.post(`${baseUrl}/mcp`, {
-      data: {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream'
+      },
+      data: JSON.stringify({
+        id: 1,
         access_token: 'some_token',
         method: 'tools/list',
         params: {}
-      }
+      })
     });
     
     // OAuth 2.1では、リクエストボディでのトークン送信は許可されない
@@ -88,7 +106,18 @@ test.describe('OAuth Authentication Middleware', () => {
   });
 
   test('WWW-Authenticate header contains correct resource metadata URL', async ({ page }) => {
-    const response = await page.request.post(`${baseUrl}/mcp`);
+    const response = await page.request.post(`${baseUrl}/mcp`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream'
+      },
+      data: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/list',
+        params: {}
+      })
+    });
     
     expect(response.status()).toBe(401);
     
@@ -104,12 +133,16 @@ test.describe('OAuth Authentication Middleware', () => {
     // 不正なスコープを持つトークンのシナリオをテスト
     const response = await page.request.post(`${baseUrl}/mcp`, {
       headers: {
-        'Authorization': 'Bearer mock_token_with_wrong_scope'
+        'Authorization': 'Bearer mock_token_with_wrong_scope',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream'
       },
-      data: {
+      data: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
         method: 'tools/list',
         params: {}
-      }
+      })
     });
     
     // 実際の実装では、Authleteがスコープ検証を行い、

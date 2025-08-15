@@ -42,16 +42,19 @@ test.describe('OAuth 2.1 MCP Integration Tests', () => {
     authUrl.searchParams.set('code_challenge_method', 'S256');
     authUrl.searchParams.set('resource', `${baseUrl}/mcp`);
     
-    const response = await page.request.get(authUrl.toString());
+    const response = await page.request.get(authUrl.toString(), {
+      maxRedirects: 0 // リダイレクトを追跡しない
+    });
     
-    // PKCEが必須なので、パラメータが正しければリダイレクトまたはログインページが表示される
-    expect([200, 302]).toContain(response.status());
+    // OAuth認可エンドポイントは常に302リダイレクトを返す
+    expect(response.status()).toBe(302);
     
-    if (response.status() === 302) {
-      // リダイレクトの場合、ログインページまたは同意ページへのリダイレクト
-      const location = response.headers()['location'];
-      expect(location).toBeTruthy();
-    }
+    // リダイレクト先が存在することを確認
+    const location = response.headers()['location'];
+    expect(location).toBeTruthy();
+    
+    // エラーがない場合はログインまたは認可ページへのリダイレクト
+    expect(location).not.toContain('error=');
   });
 
   test('Authorization endpoint rejects requests without PKCE', async ({ page }) => {
@@ -62,13 +65,17 @@ test.describe('OAuth 2.1 MCP Integration Tests', () => {
     authUrl.searchParams.set('scope', 'mcp:tickets:read mcp:tickets:write');
     // code_challenge と code_challenge_method を意図的に省略
     
-    const response = await page.request.get(authUrl.toString());
+    const response = await page.request.get(authUrl.toString(), {
+      maxRedirects: 0 // リダイレクトを追跡しない
+    });
     
-    // PKCEが必須なので、エラーが返される
-    expect(response.status()).toBe(400);
+    // PKCEが必須の場合、リダイレクトでエラーが返される
+    expect(response.status()).toBe(302);
     
-    const error = await response.json();
-    expect(error.error).toBe('invalid_request');
+    const location = response.headers()['location'];
+    expect(location).toBeTruthy();
+    expect(location).toContain('error=invalid_request');
+    expect(location).toContain('code_challenge');
   });
 
   test('Unsupported scope is handled correctly', async ({ page }) => {
@@ -82,17 +89,33 @@ test.describe('OAuth 2.1 MCP Integration Tests', () => {
     authUrl.searchParams.set('code_challenge', codeChallenge);
     authUrl.searchParams.set('code_challenge_method', 'S256');
     
-    const response = await page.request.get(authUrl.toString());
+    const response = await page.request.get(authUrl.toString(), {
+      maxRedirects: 0 // リダイレクトを追跡しない
+    });
     
-    // 未サポートスコープがある場合の処理
-    // Authleteは通常、サポートされているスコープのみを受け入れる
-    expect([200, 302, 400]).toContain(response.status());
+    // OAuth認可エンドポイントは常に302リダイレクトを返す
+    expect(response.status()).toBe(302);
+    
+    const location = response.headers()['location'];
+    expect(location).toBeTruthy();
+    
+    // 未サポートスコープがある場合、エラーまたは正常なログインページのどちらかにリダイレクト
+    // Authleteの設定によってはサポートされているスコープのみが処理される
   });
 
   test('OAuth error responses include correct WWW-Authenticate headers', async ({ page }) => {
     // 認証なしでMCPエンドポイントにアクセス
     const mcpResponse = await page.request.post(`${baseUrl}/mcp`, {
-      data: { method: 'tools/list', params: {} }
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream'
+      },
+      data: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/list',
+        params: {}
+      })
     });
     
     expect(mcpResponse.status()).toBe(401);
@@ -119,7 +142,16 @@ test.describe('OAuth 2.1 MCP Integration Tests', () => {
   test('MCP endpoint requires correct scope', async ({ page }) => {
     // mcp:tickets:readスコープが必要
     const mcpResponse = await page.request.post(`${baseUrl}/mcp`, {
-      data: { method: 'tools/list', params: {} }
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream'
+      },
+      data: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/list',
+        params: {}
+      })
     });
     
     expect(mcpResponse.status()).toBe(401);
