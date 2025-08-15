@@ -33,8 +33,19 @@ jobs:
     - name: Install Playwright Browsers
       if: steps.playwright-cache.outputs.cache-hit != 'true'
       run: npx playwright install --with-deps
-    - name: Run Playwright tests (HTTPS only)
+    - name: Run Playwright tests (Standard tests with OAuth disabled)
       run: npx playwright test
+      env:
+        MCP_OAUTH_ENABLED: 'false'
+        NODE_ENV: 'test'
+    - name: Run Playwright OAuth tests (OAuth enabled)
+      run: npm run test:oauth
+      env:
+        MCP_OAUTH_ENABLED: 'true'
+        NODE_ENV: 'development'
+        AUTHLETE_SERVICE_ACCESS_TOKEN: ${{ secrets.AUTHLETE_SERVICE_ACCESS_TOKEN }}
+        AUTHLETE_SERVICE_ID: ${{ secrets.AUTHLETE_SERVICE_ID }}
+        AUTHLETE_BASE_URL: 'https://jp.authlete.com'
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
       with:
