@@ -13,7 +13,7 @@ function generateCodeChallenge(codeVerifier: string): string {
 test.describe('OAuth 2.1 Public Client Token Flow', () => {
   const baseUrl = 'https://localhost:3443';
   const clientId = '3006291287';
-  const redirectUri = 'https://httpbin.org/anything';
+  const redirectUri = 'https://localhost:6274/oauth/callback';
 
   test('Complete OAuth 2.1 flow with PKCE for public client', async ({ page }) => {
     // ブラウザコンソールログを収集
