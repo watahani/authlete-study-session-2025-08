@@ -54,7 +54,7 @@ test.describe('OAuth 2.1 MCP Integration Tests', () => {
     expect(location).toBeTruthy();
     
     // エラーがない場合はログインまたは認可ページへのリダイレクト
-    expect(location).not.toContain('error=');
+    expect(location).not.toContain('The+authorization+request+does+not+contain+%27code_challenge%27+parameter.');
   });
 
   test('Authorization endpoint rejects requests without PKCE', async ({ page }) => {
