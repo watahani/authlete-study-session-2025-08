@@ -241,7 +241,10 @@ test.describe('MCP Server Tests', () => {
 
   test('reserve_ticket tool without user context returns error', async ({ page }) => {
     const baseURL = getBaseURL(page);
-    const accessToken = await getAccessToken(page);
+    
+    // OAuth が無効な場合は直接MCPエンドポイントにアクセス
+    const isOAuthEnabled = process.env.MCP_OAUTH_ENABLED === 'true';
+    
     const toolCallRequest = {
       jsonrpc: '2.0',
       id: 4,
@@ -255,22 +258,43 @@ test.describe('MCP Server Tests', () => {
       }
     };
 
-    const response = await page.request.post(`${baseURL}/mcp`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json, text/event-stream'
-      },
-      data: JSON.stringify(toolCallRequest)
-    });
+    if (isOAuthEnabled) {
+      // OAuth有効な場合はアクセストークンを取得して認証付きでテスト
+      const accessToken = await getAccessToken(page);
+      const response = await page.request.post(`${baseURL}/mcp`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream'
+        },
+        data: JSON.stringify(toolCallRequest)
+      });
 
-    expect(response.status()).toBe(200);
-    
-    const text = await response.text();
-    const result = parseSSEResponse(text);
-    expect(result).toHaveProperty('result');
-    expect(result.result.isError).toBe(true);
-    expect(result.result.content[0].text).toContain('ユーザー認証が必要');
+      expect(response.status()).toBe(200);
+      
+      const text = await response.text();
+      const result = parseSSEResponse(text);
+      expect(result).toHaveProperty('result');
+      expect(result.result.isError).toBe(true);
+      expect(result.result.content[0].text).toContain('ユーザー認証が必要');
+    } else {
+      // OAuth無効な場合は認証なしでアクセスして動作確認
+      const response = await page.request.post(`${baseURL}/mcp`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream'
+        },
+        data: JSON.stringify(toolCallRequest)
+      });
+
+      expect(response.status()).toBe(200);
+      
+      const text = await response.text();
+      const result = parseSSEResponse(text);
+      expect(result).toHaveProperty('result');
+      expect(result.result.isError).toBe(true);
+      expect(result.result.content[0].text).toContain('ユーザー認証が必要');
+    }
   });
 
   test('get_user_reservations tool without user context returns error', async ({ page }) => {
