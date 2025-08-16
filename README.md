@@ -296,7 +296,6 @@ HTTPS_PORT=3443                # HTTPSポート（default: 3443）
 SESSION_SECRET=your-secret     # セッション秘密鍵
 
 # MCP設定
-MCP_ENABLED=true               # MCP機能有効化（default: false）
 MCP_OAUTH_ENABLED=true         # MCP OAuth認証（default: true、NODE_ENV=testでfalse）
 
 # ログ設定

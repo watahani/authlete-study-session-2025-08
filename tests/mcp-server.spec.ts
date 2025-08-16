@@ -102,14 +102,12 @@ async function getAccessToken(page: any): Promise<string> {
 
 test.describe('MCP Server Tests', () => {
   test.beforeEach(async () => {
-    // MCPが有効な状態でテスト実行
-    process.env.MCP_ENABLED = 'true';
-    // テスト時はOAuth認証を無効化
+    // MCPは常に有効、テスト時はOAuth認証を無効化
     process.env.MCP_OAUTH_ENABLED = 'false';
     process.env.NODE_ENV = 'test';
     
     // デバッグ情報を出力
-    console.log(`Test env vars: MCP_ENABLED=${process.env.MCP_ENABLED}, MCP_OAUTH_ENABLED=${process.env.MCP_OAUTH_ENABLED}, NODE_ENV=${process.env.NODE_ENV}`);
+    console.log(`Test env vars: MCP_OAUTH_ENABLED=${process.env.MCP_OAUTH_ENABLED}, NODE_ENV=${process.env.NODE_ENV}`);
   });
 
   test('MCP health endpoint returns 200', async ({ page }) => {
