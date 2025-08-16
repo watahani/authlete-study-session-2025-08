@@ -86,7 +86,6 @@ LOG_LEVEL=debug npm run dev:https:mcp
 - `GET /oauth/authorize/consent` - 認可同意画面
 - `POST /oauth/authorize/decision` - 認可決定処理
 - `GET /.well-known/authorization-server` - OAuth Server Metadata (RFC 8414)
-- `GET /.well-known/oauth-protected-resource` - Protected Resource Metadata
 
 ### チケット API（認証要）
 - `GET /api/tickets` - チケット一覧
@@ -222,8 +221,7 @@ src/
 │   │   ├── authorization.ts   # 認可エンドポイント
 │   │   ├── token.ts          # トークンエンドポイント
 │   │   ├── introspection.ts  # トークン検証エンドポイント
-│   │   ├── authorization-server-metadata.ts # Server Metadata
-│   │   └── protected-resource-metadata.ts   # Resource Metadata
+│   │   └── authorization-server-metadata.ts # Server Metadata
 │   ├── middleware/           # OAuth ミドルウェア
 │   │   └── oauth-middleware.ts # Bearer Token認証
 │   └── routes/               # OAuth ルーティング
