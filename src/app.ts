@@ -42,10 +42,8 @@ const HTTP_PORT = process.env.HTTP_PORT || 3000;
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
 const PORT = HTTPS_ENABLED ? HTTPS_PORT : HTTP_PORT;
 
-// MCP OAuth認証の有効/無効を判定（明示的にfalseまたはテスト環境の場合は無効）
-const MCP_OAUTH_ENABLED = process.env.MCP_OAUTH_ENABLED !== 'false' && 
-                          process.env.NODE_ENV !== 'test' && 
-                          process.env.MCP_ENABLED !== 'false';
+// MCP OAuth認証の有効/無効を判定（明示的にfalseの場合のみ無効）
+const MCP_OAUTH_ENABLED = process.env.MCP_OAUTH_ENABLED !== 'false';
 
 const app = express();
 
@@ -268,20 +266,14 @@ const initializeMCPServer = async (): Promise<void> => {
   // OAuth認証ミドルウェアをインポート
   const { oauthAuthentication } = await import('./oauth/middleware/oauth-middleware.js');
 
-  // MCP OAuth認証ミドルウェアの条件付き適用（実行時に再評価）
+  // MCP OAuth認証ミドルウェアの条件付き適用
   const getMcpMiddleware = () => {
-    const runtimeOAuthEnabled = process.env.MCP_OAUTH_ENABLED !== 'false' && 
-                                process.env.NODE_ENV !== 'test' && 
-                                process.env.MCP_ENABLED !== 'false';
-    
-    mcpLogger.debug('Runtime OAuth decision', {
-      enabled: runtimeOAuthEnabled,
-      MCP_OAUTH_ENABLED: process.env.MCP_OAUTH_ENABLED,
-      NODE_ENV: process.env.NODE_ENV,
-      MCP_ENABLED: process.env.MCP_ENABLED
+    mcpLogger.debug('MCP OAuth decision', {
+      enabled: MCP_OAUTH_ENABLED,
+      MCP_OAUTH_ENABLED: process.env.MCP_OAUTH_ENABLED
     });
     
-    return runtimeOAuthEnabled 
+    return MCP_OAUTH_ENABLED 
       ? [oauthAuthentication({
           requiredScopes: ['mcp:tickets:read'], // 基本的な読み取りスコープを要求
           requireSSL: HTTPS_ENABLED
@@ -293,8 +285,7 @@ const initializeMCPServer = async (): Promise<void> => {
     enabled: MCP_OAUTH_ENABLED,
     environment: {
       NODE_ENV: process.env.NODE_ENV,
-      MCP_OAUTH_ENABLED: process.env.MCP_OAUTH_ENABLED,
-      MCP_ENABLED: process.env.MCP_ENABLED
+      MCP_OAUTH_ENABLED: process.env.MCP_OAUTH_ENABLED
     }
   });
 
@@ -346,11 +337,6 @@ const initializeMCPServer = async (): Promise<void> => {
 
   // MCP サーバー情報
   app.get('/mcp/info', (_req, res) => {
-    // 実行時にOAuth設定を再評価
-    const runtimeOAuthEnabled = process.env.MCP_OAUTH_ENABLED !== 'false' && 
-                                process.env.NODE_ENV !== 'test' && 
-                                process.env.MCP_ENABLED !== 'false';
-    
     res.json({
       name: 'authlete-study-session-mcp-server',
       version: '1.0.0',
@@ -365,8 +351,8 @@ const initializeMCPServer = async (): Promise<void> => {
         info: '/mcp/info'
       },
       oauth: {
-        enabled: runtimeOAuthEnabled,
-        requiredScopes: runtimeOAuthEnabled ? ['mcp:tickets:read'] : null
+        enabled: MCP_OAUTH_ENABLED,
+        requiredScopes: MCP_OAUTH_ENABLED ? ['mcp:tickets:read'] : null
       }
     });
   });
