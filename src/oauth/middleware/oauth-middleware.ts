@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AuthleteClient, createAuthleteClient } from '../authlete/client.js';
 import { getAuthleteConfig } from '../config/authlete-config.js';
 import { IntrospectionRequest } from '../authlete/types/index.js';
+import { oauthLogger } from '../../utils/logger.js';
 
 interface OAuthValidationOptions {
   requiredScopes?: string[];
@@ -74,7 +75,7 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
       // Introspection結果の処理
       switch (introspectionResponse.action) {
         case 'INTERNAL_SERVER_ERROR':
-          console.error('Authlete introspection error:', introspectionResponse.resultMessage);
+          oauthLogger.error('Authlete introspection error', { message: introspectionResponse.resultMessage });
           return res.status(500).json({
             error: 'server_error',
             error_description: 'Token validation failed'
@@ -126,7 +127,7 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
           break;
 
         default:
-          console.error('Unexpected introspection action:', introspectionResponse.action);
+          oauthLogger.error('Unexpected introspection action', { action: introspectionResponse.action });
           return res.status(500).json({
             error: 'server_error',
             error_description: 'Unexpected token validation result'
@@ -134,7 +135,7 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
       }
       
     } catch (error) {
-      console.error('OAuth authentication error:', error);
+      oauthLogger.error('OAuth authentication error', error);
       return res.status(500).json({
         error: 'server_error',
         error_description: 'Token validation failed'

@@ -1,6 +1,7 @@
 import express from 'express';
 import passport from 'passport';
 import { AuthService } from '../services/AuthService.js';
+import { logger } from '../utils/logger.js';
 
 const router = express.Router();
 
@@ -86,7 +87,7 @@ router.post('/login', (req, res, next) => {
     oauthScopes: req.session.oauthScopes
   };
   
-  console.log('Preserving OAuth data before login:', {
+  logger.debug('Preserving OAuth data before login', {
     sessionId: req.session.id,
     hasTicket: !!preservedOAuthData.oauthTicket,
     hasClient: !!preservedOAuthData.oauthClient,
@@ -110,7 +111,7 @@ router.post('/login', (req, res, next) => {
         req.session.oauthTicket = preservedOAuthData.oauthTicket;
         req.session.oauthClient = preservedOAuthData.oauthClient;
         req.session.oauthScopes = preservedOAuthData.oauthScopes;
-        console.log('OAuth data restored after login:', {
+        logger.debug('OAuth data restored after login', {
           sessionId: req.session.id,
           oauthTicket: req.session.oauthTicket,
           hasClient: !!req.session.oauthClient,
@@ -119,7 +120,7 @@ router.post('/login', (req, res, next) => {
       }
       
       // ログイン前のセッションデバッグ
-      console.log('Login success - Session debug:', {
+      logger.debug('Login success - Session debug', {
         sessionId: req.session.id,
         ticket: ticket,
         hasOAuthData: {
@@ -133,11 +134,11 @@ router.post('/login', (req, res, next) => {
       // セッション保存を確実に行う
       req.session.save((saveErr) => {
         if (saveErr) {
-          console.error('Session save error after login:', saveErr);
+          logger.error('Session save error after login', saveErr);
           return res.status(500).json({ error: 'Session management failed' });
         }
         
-        console.log('Session saved after login - OAuth data preserved:', {
+        logger.debug('Session saved after login - OAuth data preserved', {
           oauthTicket: !!req.session.oauthTicket,
           oauthClient: !!req.session.oauthClient,
           oauthScopes: !!req.session.oauthScopes
@@ -145,7 +146,7 @@ router.post('/login', (req, res, next) => {
         
         // OAuth認可フローからのリダイレクト処理
         if (ticket) {
-          console.log('Redirecting to consent with ticket:', ticket);
+          logger.debug('Redirecting to consent with ticket', { ticket });
           return res.redirect(`/oauth/authorize/consent?ticket=${ticket}`);
         }
         

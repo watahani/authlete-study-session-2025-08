@@ -86,7 +86,34 @@ test('テスト名', async ({ page }) => {
 
 ### サーバーサイドデバッグ
 
-サーバーログはバックグラウンドで実行中の開発サーバーから確認できる：
+#### ロガーシステムを使用したデバッグ
+
+プロジェクトには構造化ログシステムが実装されており、環境変数でログレベルを制御できる：
+
+```bash
+# デバッグログを有効化してサーバー起動
+LOG_LEVEL=debug npm run dev:https
+
+# 詳細なトレースログまで出力
+LOG_LEVEL=trace npm run dev:https
+
+# テスト実行時のログレベル制御
+TEST_LOG_LEVEL=debug npx playwright test
+```
+
+**利用可能なログレベル**:
+- `error`: エラーのみ
+- `warn`: 警告以上
+- `info`: 情報以上（デフォルト）
+- `debug`: デバッグ情報以上
+- `trace`: すべてのログ
+
+**専用ロガー**:
+- `oauthLogger`: OAuth関連のログ
+- `mcpLogger`: MCP関連のログ  
+- `authleteLogger`: Authlete API関連のログ
+
+#### バックグラウンドサーバーログの確認
 
 ```bash
 # バックグラウンドで実行中の npm run dev:https のログを確認

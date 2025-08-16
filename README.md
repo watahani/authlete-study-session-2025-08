@@ -332,6 +332,67 @@ npx playwright test tests/reservation-functionality.spec.ts
 npx playwright test tests/debug-*.spec.ts --headed
 ```
 
+## 🐛 デバッグ方法
+
+### ロガーシステムによるデバッグ
+
+プロジェクトには構造化ログシステムが実装されており、環境変数でログレベルを制御可能：
+
+```bash
+# デバッグログを有効化してサーバー起動
+LOG_LEVEL=debug npm run dev:https
+
+# 詳細なトレースログまで出力
+LOG_LEVEL=trace npm run dev:https
+
+# テスト実行時のログレベル制御
+TEST_LOG_LEVEL=debug npx playwright test
+
+# 特定の機能のデバッグ（OAuthトークンフロー）
+LOG_LEVEL=debug npx playwright test tests/oauth-token-flow.spec.ts
+```
+
+**利用可能なログレベル**:
+- `error`: エラーのみ
+- `warn`: 警告以上
+- `info`: 情報以上（デフォルト）
+- `debug`: デバッグ情報以上
+- `trace`: すべてのログ
+
+**専用ロガーによる分類**:
+- `oauthLogger`: OAuth関連（認可・トークン・認証）
+- `mcpLogger`: MCP関連（サーバー・ツール・接続）
+- `authleteLogger`: Authlete API関連（リクエスト・レスポンス）
+
+### デバッグのワークフロー
+
+```bash
+# 1. デバッグログ有効化でサーバー起動
+LOG_LEVEL=debug npm run dev:https
+
+# 2. 問題のあるテストを詳細ログで実行
+TEST_LOG_LEVEL=debug npx playwright test tests/specific-test.spec.ts
+
+# 3. 特定機能に集中してデバッグ
+LOG_LEVEL=trace npx playwright test tests/oauth-token-flow.spec.ts --headed
+```
+
+### ログ出力例
+
+```bash
+# OAuth認証フローのデバッグログ例
+[2025-01-15 10:30:45] [DEBUG] [OAuth] Authorization request received {
+  "clientId": "3006291287",
+  "responseType": "code",
+  "scopes": ["mcp:tickets:read", "mcp:tickets:write"]
+}
+
+[2025-01-15 10:30:46] [DEBUG] [MCP] MCP endpoint protected by OAuth {
+  "requiredScopes": ["mcp:tickets:read"],
+  "accessToken": "Bearer at_xxx...xxx"
+}
+```
+
 ### 🔒 HTTP/HTTPS 統合アプリケーション
 
 **v2.0での改善点:**

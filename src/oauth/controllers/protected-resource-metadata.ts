@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { oauthLogger } from '../../utils/logger.js';
 
 /**
  * OAuth 2.0 Protected Resource Metadata (RFC 8414)
@@ -49,7 +50,7 @@ export const getProtectedResourceMetadata = async (req: Request, res: Response) 
     res.json(metadata);
     
   } catch (error) {
-    console.error('Protected resource metadata error:', error);
+    oauthLogger.error('Protected resource metadata error', error);
     res.status(500).json({
       error: 'server_error', 
       error_description: 'Unable to generate protected resource metadata'

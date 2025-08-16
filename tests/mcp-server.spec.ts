@@ -26,7 +26,7 @@ function generateCodeChallenge(codeVerifier: string): string {
 async function getAccessToken(page: any): Promise<string> {
   const baseURL = getBaseURL(page);
   const clientId = '3006291287';
-  const redirectUri = 'https://localhost:6274/oauth/callback';
+  const redirectUri = 'https://localhost:3443/oauth/callback';
   
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = generateCodeChallenge(codeVerifier);

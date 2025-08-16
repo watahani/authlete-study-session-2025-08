@@ -1,5 +1,15 @@
 import { test, expect } from '@playwright/test';
 import crypto from 'crypto';
+import { configureTestLogger } from '../src/utils/logger.js';
+
+// Helper function to parse Server-Sent Events response
+function parseSSEResponse(text: string): any {
+  const eventData = text.split('\n').find(line => line.startsWith('data:'))?.substring(5).trim();
+  return eventData ? JSON.parse(eventData) : null;
+}
+
+// テスト用ロガーを設定
+const testLogger = configureTestLogger();
 
 // PKCE用のユーティリティ関数
 function generateCodeVerifier(): string {
@@ -13,7 +23,7 @@ function generateCodeChallenge(codeVerifier: string): string {
 test.describe('OAuth 2.1 Public Client Token Flow', () => {
   const baseUrl = 'https://localhost:3443';
   const clientId = '3006291287';
-  const redirectUri = 'https://localhost:6274/oauth/callback';
+  const redirectUri = 'https://localhost:3443/oauth/callback';
 
   test('Complete OAuth 2.1 flow with PKCE for public client', async ({ page }) => {
     // ブラウザコンソールログを収集
@@ -40,13 +50,31 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
     
     // Responseイベントを監視してLocationヘッダーからcodeを取得
     page.on('response', (response) => {
-      if (response.status() === 302 && response.url().includes('/oauth/authorize/decision')) {
+      testLogger.trace(`Response: ${response.status()} ${response.url()}`);
+      
+      if (response.status() === 302) {
         const location = response.headers().location;
-        if (location && location.includes('code=')) {
-          const locationUrl = new URL(location);
-          authorizationCode = locationUrl.searchParams.get('code');
-          state = locationUrl.searchParams.get('state');
-          console.log('Authorization code extracted from 302 redirect:', authorizationCode?.substring(0, 10) + '...');
+        testLogger.debug('302 redirect detected', { location });
+        
+        if (response.url().includes('/oauth/authorize/decision')) {
+          testLogger.debug('Decision endpoint redirect detected');
+          if (location && location.includes('code=')) {
+            const locationUrl = new URL(location);
+            authorizationCode = locationUrl.searchParams.get('code');
+            state = locationUrl.searchParams.get('state');
+            testLogger.debug('Authorization code extracted from 302 redirect', {
+              codePrefix: authorizationCode?.substring(0, 10) + '...',
+              state
+            });
+          } else {
+            testLogger.warn('Location header does not contain authorization code');
+            if (location && location.includes('error=')) {
+              const locationUrl = new URL(location);
+              const error = locationUrl.searchParams.get('error');
+              const errorDescription = locationUrl.searchParams.get('error_description');
+              testLogger.error('Authorization error in redirect', { error, errorDescription });
+            }
+          }
         }
       }
     });
@@ -55,7 +83,7 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = generateCodeChallenge(codeVerifier);
     
-    console.log('Generated PKCE parameters:', {
+    testLogger.debug('Generated PKCE parameters', {
       codeVerifier: codeVerifier.substring(0, 10) + '...',
       codeChallenge: codeChallenge.substring(0, 10) + '...'
     });
@@ -71,7 +99,7 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
     authUrl.searchParams.set('resource', `${baseUrl}/mcp`);
     authUrl.searchParams.set('state', 'test_state_123');
 
-    console.log('Authorization URL:', authUrl.toString());
+    testLogger.debug('Authorization URL', { url: authUrl.toString() });
 
     // 3. 認可エンドポイントにアクセス
     await page.goto(authUrl.toString());
@@ -134,21 +162,17 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
         if (await approvalButton.isVisible()) {
           console.log('Approval button is visible, clicking...');
           
-          // ナビゲーション待機とクリックを同時実行
-          const navigationPromise = page.waitForURL(/callback|error/, { timeout: 10000 });
-          
+          // 認可ボタンをクリック（302リダイレクトを待機）
           await approvalButton.click();
           
-          try {
-            await navigationPromise;
-            console.log('Navigation successful, current URL:', page.url());
-          } catch (navError) {
-            console.log('Navigation timeout, but checking current URL:', page.url());
-            
-            // URL変更があったか確認
-            await page.waitForTimeout(2000);
-            console.log('After timeout, current URL:', page.url());
+          // 302リダイレクトレスポンスを待機（認可コードが取得されるまで）
+          let waitAttempts = 0;
+          while (!authorizationCode && waitAttempts < 10) {
+            await page.waitForTimeout(500);
+            waitAttempts++;
           }
+          
+          console.log('Authorization code check after click:', authorizationCode ? 'Found' : 'Not found');
         } else {
           console.log('Approval button not visible');
         }
@@ -157,66 +181,98 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
         console.log('Button click failed:', error);
       }
       
-      // URLから直接authorization codeを抽出
-      await page.waitForTimeout(3000);
-      const finalUrl = page.url();
-      console.log('Final URL after consent:', finalUrl);
-      
-      if (finalUrl.includes('code=')) {
-        const urlParams = new URL(finalUrl);
-        authorizationCode = urlParams.searchParams.get('code');
-        state = urlParams.searchParams.get('state');
-      }
+      // 認可コードが302リダイレクトから取得できているかチェック
+      console.log('Final authorization code status:', authorizationCode ? 'Available' : 'Missing');
     } else if (loginCurrentUrl.includes('/auth/login')) {
       // まだログインページにいる場合は、認証が失敗している可能性
-      console.log('Still on login page after retries, checking for errors');
+      testLogger.warn('Still on login page after retries, checking for errors');
       const errorElements = await page.$$('.error, .alert, [class*="error"], [id*="error"]');
       for (const element of errorElements) {
         const text = await element.textContent();
-        console.log('Error message found:', text);
+        testLogger.error('Error message found', { text });
       }
       throw new Error('Login failed or no redirect occurred');
     }
 
-    // 6. ネイティブアプリ想定: コンセント後のリダイレクトを待機してcodeを取得
-    // コンセント後のリダイレクトを待機（最大15秒）
-    let attempts = 0;
-    while (!authorizationCode && attempts < 15) {
-      await page.waitForTimeout(1000);
-      attempts++;
-    }
+    // 6. 認可コードの最終確認（302リダイレクトから取得済み）
+    console.log('Final check - Authorization code:', authorizationCode ? 'Available' : 'Missing');
+    console.log('Final check - State:', state);
     
-    // フォールバック: 現在のURLから取得を試行
-    if (!authorizationCode && page.url().includes('code=')) {
-      const currentUrl = new URL(page.url());
-      authorizationCode = currentUrl.searchParams.get('code');
-      state = currentUrl.searchParams.get('state');
+    if (!authorizationCode) {
+      console.error('Authorization code was not obtained from 302 redirect');
+      console.error('Current page URL:', page.url());
+      console.error('Page title:', await page.title());
+      const bodyText = await page.textContent('body');
+      console.error('Page body content:', bodyText?.substring(0, 500) + '...');
     }
 
     expect(authorizationCode).toBeTruthy();
     expect(state).toBe('test_state_123');
 
     console.log('Authorization code obtained:', authorizationCode?.substring(0, 10) + '...');
+    console.log('Authorization code length:', authorizationCode?.length);
     console.log('Final callback URL:', page.url());
 
     // 7. トークンエンドポイントでアクセストークンを取得
+    console.log('Making token request with the following parameters:');
+    const tokenRequestData = {
+      grant_type: 'authorization_code',
+      client_id: clientId,
+      code: authorizationCode!,
+      redirect_uri: redirectUri,
+      code_verifier: codeVerifier,
+    };
+    console.log('Token request data:', {
+      grant_type: tokenRequestData.grant_type,
+      client_id: tokenRequestData.client_id,
+      code: tokenRequestData.code?.substring(0, 10) + '...',
+      redirect_uri: tokenRequestData.redirect_uri,
+      code_verifier: tokenRequestData.code_verifier?.substring(0, 10) + '...'
+    });
+    
+    // URLSearchParamsを使用して正しくエンコード
+    const formData = new URLSearchParams();
+    formData.append('grant_type', tokenRequestData.grant_type);
+    formData.append('client_id', tokenRequestData.client_id);
+    formData.append('code', tokenRequestData.code);
+    formData.append('redirect_uri', tokenRequestData.redirect_uri);
+    formData.append('code_verifier', tokenRequestData.code_verifier);
+    
+    console.log('Encoded form data:', formData.toString());
+    
     const tokenResponse = await page.request.post(`${baseUrl}/oauth/token`, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      data: {
-        grant_type: 'authorization_code',
-        client_id: clientId,
-        code: authorizationCode!,
-        redirect_uri: redirectUri,
-        code_verifier: codeVerifier,
-      }
+      data: formData.toString()
     });
 
+    console.log('Token response status:', tokenResponse.status());
+    console.log('Token response headers:', tokenResponse.headers());
+    
+    // レスポンスボディをデバッグ出力
+    const responseText = await tokenResponse.text();
+    console.log('Token response body:', responseText);
+    
+    // ステータスコードの確認とエラーハンドリング
+    if (tokenResponse.status() !== 200) {
+      console.error('Token request failed with status:', tokenResponse.status());
+      try {
+        const errorData = JSON.parse(responseText);
+        console.error('Error details:', errorData);
+        console.error('Error code:', errorData.error);
+        console.error('Error description:', errorData.error_description);
+      } catch (parseError) {
+        console.error('Could not parse error response as JSON:', parseError);
+        console.error('Raw error response:', responseText);
+      }
+      throw new Error(`Token request failed with status ${tokenResponse.status()}: ${responseText}`);
+    }
+    
     expect(tokenResponse.status()).toBe(200);
     expect(tokenResponse.headers()['content-type']).toContain('application/json');
 
-    const tokenData = await tokenResponse.json();
+    const tokenData = JSON.parse(responseText);
     
     // 8. トークンレスポンスの検証
     expect(tokenData.access_token).toBeTruthy();
@@ -254,7 +310,9 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
 
     expect(mcpResponse.status()).toBe(200);
     
-    const mcpData = await mcpResponse.json();
+    const mcpText = await mcpResponse.text();
+    console.log('MCP response text:', mcpText);
+    const mcpData = parseSSEResponse(mcpText);
     expect(mcpData.result).toBeTruthy();
     expect(mcpData.result.tools).toBeTruthy();
     
@@ -267,6 +325,20 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
   test('Invalid code_verifier is rejected', async ({ page }) => {
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = generateCodeChallenge(codeVerifier);
+    
+    // Authorization code取得用の変数とイベントリスナー
+    let authorizationCode: string | null = null;
+    
+    // Responseイベントを監視してLocationヘッダーからcodeを取得
+    page.on('response', (response) => {
+      if (response.status() === 302 && response.url().includes('/oauth/authorize/decision')) {
+        const location = response.headers().location;
+        if (location && location.includes('code=')) {
+          const locationUrl = new URL(location);
+          authorizationCode = locationUrl.searchParams.get('code');
+        }
+      }
+    });
     
     // 認可フローを実行してcodeを取得
     const authUrl = new URL(`${baseUrl}/oauth/authorize`);
@@ -290,11 +362,17 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
     await page.click('button[type="submit"]');
     
     await page.waitForTimeout(2000);
-    console.log('Current URL after login:', page.url());
+    testLogger.debug('Current URL after login', { url: page.url() });
     
     // コンセントページまたは認可コールバックを待機
     if (page.url().includes('/oauth/authorize/consent')) {
       try {
+        // 承認ボタンをクリック
+        const approvalButton = await page.locator('button.approve').first();
+        if (await approvalButton.isVisible()) {
+          await approvalButton.click();
+        }
+      } catch {
         // フォーム送信を直接実行
         await page.evaluate(() => {
           const forms = document.querySelectorAll('form');
@@ -306,45 +384,37 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
             }
           }
         });
-      } catch {
-        try {
-        await page.evaluate(() => {
-          const forms = document.querySelectorAll('form');
-          for (const form of forms) {
-            const authorizedInput = form.querySelector('input[name="authorized"][value="true"]') as HTMLInputElement;
-            if (authorizedInput) {
-              form.submit();
-              return;
-            }
-          }
-        });
-      } catch {
-        await page.click('button[name="authorized"][value="true"]');
-      }
       }
     }
     
-    await page.waitForURL(/oauth\/callback/, { timeout: 15000 });
-    const authorizationCode = new URL(page.url()).searchParams.get('code');
+    // 302リダイレクトレスポンスを待機（認可コードが取得されるまで）
+    let waitAttempts = 0;
+    while (!authorizationCode && waitAttempts < 10) {
+      await page.waitForTimeout(500);
+      waitAttempts++;
+    }
+    
+    expect(authorizationCode).toBeTruthy();
 
     // 間違ったcode_verifierでトークンリクエスト
+    const formData = new URLSearchParams();
+    formData.append('grant_type', 'authorization_code');
+    formData.append('client_id', clientId);
+    formData.append('code', authorizationCode!);
+    formData.append('redirect_uri', redirectUri);
+    formData.append('code_verifier', 'wrong_code_verifier_here'); // 意図的に間違ったverifier
+    
     const tokenResponse = await page.request.post(`${baseUrl}/oauth/token`, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      data: {
-        grant_type: 'authorization_code',
-        client_id: clientId,
-        code: authorizationCode!,
-        redirect_uri: redirectUri,
-        code_verifier: 'wrong_code_verifier_here', // 意図的に間違ったverifier
-      }
+      data: formData.toString()
     });
 
     expect(tokenResponse.status()).toBe(400);
     
     const errorData = await tokenResponse.json();
-    expect(errorData.error).toBe('invalid_grant');
+    expect(errorData.error).toBe('invalid_request');
   });
 
   test('Missing code_verifier is rejected', async ({ page }) => {
@@ -365,13 +435,27 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
     } else {
       // PKCE必須でない場合は200でログインページが表示される
       expect(response.status()).toBe(200);
-      console.log('PKCE is not required by this server configuration');
+      testLogger.info('PKCE is not required by this server configuration');
     }
   });
 
   test('Unsupported scope is filtered out', async ({ page }) => {
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = generateCodeChallenge(codeVerifier);
+    
+    // Authorization code取得用の変数とイベントリスナー
+    let authorizationCode: string | null = null;
+    
+    // Responseイベントを監視してLocationヘッダーからcodeを取得
+    page.on('response', (response) => {
+      if (response.status() === 302 && response.url().includes('/oauth/authorize/decision')) {
+        const location = response.headers().location;
+        if (location && location.includes('code=')) {
+          const locationUrl = new URL(location);
+          authorizationCode = locationUrl.searchParams.get('code');
+        }
+      }
+    });
     
     const authUrl = new URL(`${baseUrl}/oauth/authorize`);
     authUrl.searchParams.set('response_type', 'code');
@@ -394,14 +478,14 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
     await page.click('button[type="submit"]');
     
     await page.waitForTimeout(2000);
-    console.log('Current URL after login:', page.url());
+    testLogger.debug('Current URL after login', { url: page.url() });
     
     // コンセントページまたは直接コールバックを待機
     try {
       await page.waitForURL(/consent/, { timeout: 10000 });
     } catch {
       // consentページが表示されない場合もある
-      console.log('No consent page detected, checking for callback');
+      testLogger.debug('No consent page detected, checking for callback');
     }
     
     // コンセントページが表示された場合のスコープ確認
@@ -412,6 +496,13 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
       expect(bodyText).not.toContain('invalid:scope');
       
       try {
+        // 承認ボタンをクリック
+        const approvalButton = await page.locator('button.approve').first();
+        if (await approvalButton.isVisible()) {
+          await approvalButton.click();
+        }
+      } catch {
+        // フォーム送信を直接実行
         await page.evaluate(() => {
           const forms = document.querySelectorAll('form');
           for (const form of forms) {
@@ -422,26 +513,31 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
             }
           }
         });
-      } catch {
-        await page.click('button[name="authorized"][value="true"]');
       }
     }
     
-    await page.waitForURL(/oauth\/callback/, { timeout: 15000 });
-    const authorizationCode = new URL(page.url()).searchParams.get('code');
+    // 302リダイレクトレスポンスを待機（認可コードが取得されるまで）
+    let waitAttempts = 0;
+    while (!authorizationCode && waitAttempts < 10) {
+      await page.waitForTimeout(500);
+      waitAttempts++;
+    }
+    
+    expect(authorizationCode).toBeTruthy();
 
     // トークン取得
+    const formData = new URLSearchParams();
+    formData.append('grant_type', 'authorization_code');
+    formData.append('client_id', clientId);
+    formData.append('code', authorizationCode!);
+    formData.append('redirect_uri', redirectUri);
+    formData.append('code_verifier', codeVerifier);
+    
     const tokenResponse = await page.request.post(`${baseUrl}/oauth/token`, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      data: {
-        grant_type: 'authorization_code',
-        client_id: clientId,
-        code: authorizationCode!,
-        redirect_uri: redirectUri,
-        code_verifier: codeVerifier,
-      }
+      data: formData.toString()
     });
 
     expect(tokenResponse.status()).toBe(200);
@@ -458,6 +554,20 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
     // まず有効なトークンを取得（前のテストロジックを再利用）
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = generateCodeChallenge(codeVerifier);
+    
+    // Authorization code取得用の変数とイベントリスナー
+    let authorizationCode: string | null = null;
+    
+    // Responseイベントを監視してLocationヘッダーからcodeを取得
+    page.on('response', (response) => {
+      if (response.status() === 302 && response.url().includes('/oauth/authorize/decision')) {
+        const location = response.headers().location;
+        if (location && location.includes('code=')) {
+          const locationUrl = new URL(location);
+          authorizationCode = locationUrl.searchParams.get('code');
+        }
+      }
+    });
     
     const authUrl = new URL(`${baseUrl}/oauth/authorize`);
     authUrl.searchParams.set('response_type', 'code');
@@ -478,11 +588,17 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
     await page.click('button[type="submit"]');
     
     await page.waitForTimeout(2000);
-    console.log('Current URL after login:', page.url());
+    testLogger.debug('Current URL after login', { url: page.url() });
     
     // コンセントページまたは認可コールバックを待機
     if (page.url().includes('/oauth/authorize/consent')) {
       try {
+        // 承認ボタンをクリック
+        const approvalButton = await page.locator('button.approve').first();
+        if (await approvalButton.isVisible()) {
+          await approvalButton.click();
+        }
+      } catch {
         // フォーム送信を直接実行
         await page.evaluate(() => {
           const forms = document.querySelectorAll('form');
@@ -494,48 +610,42 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
             }
           }
         });
-      } catch {
-        try {
-        await page.evaluate(() => {
-          const forms = document.querySelectorAll('form');
-          for (const form of forms) {
-            const authorizedInput = form.querySelector('input[name="authorized"][value="true"]') as HTMLInputElement;
-            if (authorizedInput) {
-              form.submit();
-              return;
-            }
-          }
-        });
-      } catch {
-        await page.click('button[name="authorized"][value="true"]');
-      }
       }
     }
     
-    await page.waitForURL(/oauth\/callback/, { timeout: 15000 });
+    // 302リダイレクトレスポンスを待機（認可コードが取得されるまで）
+    let waitAttempts = 0;
+    while (!authorizationCode && waitAttempts < 10) {
+      await page.waitForTimeout(500);
+      waitAttempts++;
+    }
     
-    const authorizationCode = new URL(page.url()).searchParams.get('code');
+    expect(authorizationCode).toBeTruthy();
+    
+    // トークンリクエスト
+    const tokenFormData = new URLSearchParams();
+    tokenFormData.append('grant_type', 'authorization_code');
+    tokenFormData.append('client_id', clientId);
+    tokenFormData.append('code', authorizationCode!);
+    tokenFormData.append('redirect_uri', redirectUri);
+    tokenFormData.append('code_verifier', codeVerifier);
     
     const tokenResponse = await page.request.post(`${baseUrl}/oauth/token`, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      data: {
-        grant_type: 'authorization_code',
-        client_id: clientId,
-        code: authorizationCode!,
-        redirect_uri: redirectUri,
-        code_verifier: codeVerifier,
-      }
+      data: tokenFormData.toString()
     });
 
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
+    expect(accessToken).toBeTruthy();
 
     // イントロスペクションエンドポイントでトークンを検証
+    const introspectionFormData = new URLSearchParams();
+    introspectionFormData.append('token', accessToken);
+    
     const introspectionResponse = await page.request.post(`${baseUrl}/oauth/introspect`, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      data: {
-        token: accessToken,
-      }
+      data: introspectionFormData.toString()
     });
 
     expect(introspectionResponse.status()).toBe(200);
