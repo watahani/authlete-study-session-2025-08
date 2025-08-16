@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthleteClient } from '../authlete/client.js';
 import { AuthorizationRequest } from '../authlete/types/index.js';
+import { oauthLogger } from '../../utils/logger.js';
 
 export class AuthorizationController {
   private authleteClient: AuthleteClient;
@@ -78,7 +79,7 @@ export class AuthorizationController {
           });
       }
     } catch (error) {
-      console.error('Authorization endpoint error:', error);
+      oauthLogger.error('Authorization endpoint error', error);
       res.status(500).json({
         error: 'server_error',
         error_description: 'Internal server error occurred'
@@ -102,25 +103,58 @@ export class AuthorizationController {
       return;
     }
 
+    oauthLogger.debug('Authlete response debug', response);
+
+
+    // デバッグ: Authleteレスポンスの内容をログ出力
+    oauthLogger.debug('Authlete response debug', {
+      ticket: !!response.ticket,
+      client: !!response.client,
+      scopes: response.scopes,
+      scopesType: typeof response.scopes,
+      scopesLength: response.scopes?.length,
+      scopesDetail: response.scopes
+    });
+
+    // セッション情報の保存前デバッグ
+    oauthLogger.debug('Before session save', {
+      sessionId: req.session.id,
+      hasUser: !!req.user,
+      ticket: response.ticket
+    });
+    
     // セッションにOAuth情報を保存
     req.session.oauthTicket = response.ticket;
     req.session.oauthClient = response.client;
     req.session.oauthScopes = response.scopes;
 
+    // 保存直後の確認
+    oauthLogger.debug('After assignment - Session OAuth data', {
+      oauthTicket: req.session.oauthTicket,
+      oauthClient: !!req.session.oauthClient,
+      oauthScopes: !!req.session.oauthScopes
+    });
+
     // セッション保存を確実に行う
     req.session.save((err) => {
       if (err) {
-        console.error('Session save error:', err);
+        oauthLogger.error('Session save error', err);
         res.status(500).json({
           error: 'server_error',
           error_description: 'Session management failed'
         });
         return;
       }
+      
+      oauthLogger.debug('Session saved successfully - redirecting...', {
+        sessionId: req.session.id
+      });
 
       if (req.user) {
+        oauthLogger.debug('User authenticated, redirecting to consent');
         res.redirect(`/oauth/authorize/consent?ticket=${response.ticket}`);
       } else {
+        oauthLogger.debug('User not authenticated, redirecting to login');
         res.redirect(`/auth/login?ticket=${response.ticket}&return_to=${encodeURIComponent(req.originalUrl)}`);
       }
     });

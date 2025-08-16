@@ -1,8 +1,10 @@
 import express from 'express';
 import { AuthorizationController } from '../controllers/authorization.js';
 import { TokenController } from '../controllers/token.js';
+import { IntrospectionController } from '../controllers/introspection.js';
 import { createAuthleteClient, AuthleteClient } from '../authlete/client.js';
 import { getAuthleteConfig } from '../config/authlete-config.js';
+import { oauthLogger } from '../../utils/logger.js';
 
 const router = express.Router();
 
@@ -10,6 +12,7 @@ const router = express.Router();
 let authleteClient: AuthleteClient | null = null;
 let authorizationController: AuthorizationController | null = null;
 let tokenController: TokenController | null = null;
+let introspectionController: IntrospectionController | null = null;
 
 // Authleteクライアントの遅延初期化
 function getAuthleteClient(): AuthleteClient {
@@ -18,6 +21,7 @@ function getAuthleteClient(): AuthleteClient {
     authleteClient = createAuthleteClient(authleteConfig);
     authorizationController = new AuthorizationController(authleteClient);
     tokenController = new TokenController(authleteClient);
+    introspectionController = new IntrospectionController(authleteClient);
   }
   return authleteClient;
 }
@@ -32,6 +36,11 @@ function getTokenController(): TokenController {
   return tokenController!;
 }
 
+function getIntrospectionController(): IntrospectionController {
+  getAuthleteClient(); // 初期化を確実に行う
+  return introspectionController!;
+}
+
 router.get('/authorize', (req, res) => {
   getAuthorizationController().handleAuthorizationRequest(req, res);
 });
@@ -44,13 +53,28 @@ router.post('/token', (req, res) => {
   getTokenController().handleTokenRequest(req, res);
 });
 
+router.post('/introspect', (req, res) => {
+  getIntrospectionController().handleIntrospectionRequest(req, res);
+});
+
 router.get('/authorize/consent', (req, res) => {
   const { ticket } = req.query;
   const { oauthTicket, oauthClient, oauthScopes } = req.session;
+  
+  // セッションデバッグ情報
+  oauthLogger.debug('Consent page session debug', {
+    sessionId: req.session.id,
+    queryTicket: ticket,
+    sessionTicket: oauthTicket,
+    hasClient: !!oauthClient,
+    hasScopes: !!oauthScopes,
+    user: !!req.user,
+    allSessionKeys: Object.keys(req.session)
+  });
 
   // セッション情報の検証
   if (!oauthTicket || !oauthClient || !oauthScopes) {
-    console.log('Missing session data:', { oauthTicket, oauthClient: !!oauthClient, oauthScopes: !!oauthScopes });
+    oauthLogger.warn('Missing session data', { oauthTicket, oauthClient: !!oauthClient, oauthScopes: !!oauthScopes });
     return res.status(400).json({
       error: 'invalid_request',
       error_description: 'Missing authorization session data'
@@ -59,7 +83,7 @@ router.get('/authorize/consent', (req, res) => {
 
   // ticketパラメータとセッションのticketが一致するか確認
   if (ticket !== oauthTicket) {
-    console.log('Ticket mismatch:', { queryTicket: ticket, sessionTicket: oauthTicket });
+    oauthLogger.warn('Ticket mismatch', { queryTicket: ticket, sessionTicket: oauthTicket });
     return res.status(400).json({
       error: 'invalid_request',
       error_description: 'Invalid authorization ticket'
@@ -126,15 +150,48 @@ router.get('/authorize/consent', (req, res) => {
   `);
 });
 
+// テスト用コールバックエンドポイント
+router.get('/callback', (req, res) => {
+  oauthLogger.debug('OAuth callback received', {
+    query: req.query,
+    url: req.url
+  });
+  
+  res.json({
+    message: 'OAuth callback received',
+    params: req.query
+  });
+});
+
 router.post('/authorize/decision', async (req, res) => {
+  oauthLogger.debug('Decision endpoint called', {
+    method: req.method,
+    url: req.url,
+    headers: req.headers,
+    body: req.body,
+    sessionId: req.session.id,
+    userAuthenticated: !!req.user
+  });
+  
   try {
     const { ticket, authorized } = req.body;
     const user = req.user as any;
     const { oauthTicket, oauthClient, oauthScopes } = req.session;
+    
+    oauthLogger.debug('Decision processing', {
+      ticket: ticket,
+      authorized: authorized,
+      hasUser: !!user,
+      sessionData: {
+        oauthTicket: oauthTicket,
+        hasClient: !!oauthClient,
+        hasScopes: !!oauthScopes
+      }
+    });
 
     // セッション情報とticketの検証
     if (!ticket || !user || !oauthTicket || !oauthClient || !oauthScopes) {
-      console.log('Missing required data:', { 
+      oauthLogger.warn('Missing required data', { 
         ticket: !!ticket, 
         user: !!user, 
         oauthTicket: !!oauthTicket, 
@@ -149,7 +206,7 @@ router.post('/authorize/decision', async (req, res) => {
 
     // ticketの一致確認
     if (ticket !== oauthTicket) {
-      console.log('Ticket mismatch in decision:', { bodyTicket: ticket, sessionTicket: oauthTicket });
+      oauthLogger.warn('Ticket mismatch in decision', { bodyTicket: ticket, sessionTicket: oauthTicket });
       return res.status(400).json({
         error: 'invalid_request',
         error_description: 'Invalid authorization ticket'
@@ -200,12 +257,12 @@ router.post('/authorize/decision', async (req, res) => {
     // セッション保存（クリーンアップ後）
     req.session.save((saveErr) => {
       if (saveErr) {
-        console.error('Session cleanup save error:', saveErr);
+        oauthLogger.error('Session cleanup save error', saveErr);
       }
     });
 
   } catch (error) {
-    console.error('Authorization decision error:', error);
+    oauthLogger.error('Authorization decision error', error);
     res.status(500).json({
       error: 'server_error',
       error_description: 'Internal server error occurred'

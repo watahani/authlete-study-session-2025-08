@@ -124,23 +124,53 @@ async function login() {
     }
     
     try {
+        console.log('Attempting login for:', username);
         const response = await fetch('/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password })
         });
         
-        const data = await response.json();
+        console.log('Login response status:', response.status);
+        console.log('Login response headers:', response.headers);
         
-        if (response.ok) {
-            currentUser = data.user;
-            updateAuthUI(true);
-            showMessage('ログインしました', 'success');
-            loadTickets(); // ログイン後にチケット一覧を再読み込み
+        // レスポンスタイプを確認
+        const contentType = response.headers.get('Content-Type');
+        console.log('Content-Type:', contentType);
+        
+        if (contentType && contentType.includes('application/json')) {
+            const data = await response.json();
+            console.log('Login response data:', data);
+            
+            if (response.ok) {
+                currentUser = data.user;
+                updateAuthUI(true);
+                showMessage('ログインしました', 'success');
+                loadTickets(); // ログイン後にチケット一覧を再読み込み
+            } else {
+                showMessage(data.error || 'ログインに失敗しました', 'error');
+            }
         } else {
-            showMessage(data.error || 'ログインに失敗しました', 'error');
+            // リダイレクトレスポンスの場合
+            console.log('Login redirect detected, checking if successful');
+            if (response.ok || response.status === 302) {
+                // ユーザー情報を取得
+                const profileResponse = await fetch('/auth/profile');
+                if (profileResponse.ok) {
+                    const profileData = await profileResponse.json();
+                    currentUser = profileData.user;
+                    updateAuthUI(true);
+                    showMessage('ログインしました', 'success');
+                    loadTickets();
+                } else {
+                    showMessage('ログインに失敗しました', 'error');
+                }
+            } else {
+                showMessage('ログインに失敗しました', 'error');
+            }
         }
     } catch (error) {
+        console.error('Login error:', error);
         showMessage('ログインに失敗しました', 'error');
     }
 }

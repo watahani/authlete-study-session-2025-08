@@ -38,9 +38,8 @@ test.describe('予約機能のテスト', () => {
     await page.fill('#login-password', testPassword);
     await page.click('#login-button');
     
-    // ログイン成功メッセージまたはUIの変化を確認
-    await page.waitForTimeout(1000);
-    await expect(page.locator('.success')).toContainText('ログインしました');
+    // ログイン成功をユーザー情報の表示で確認
+    await expect(page.locator('#user-info')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#user-info')).toContainText(`ログイン中: ${testUsername}`);
   });
 

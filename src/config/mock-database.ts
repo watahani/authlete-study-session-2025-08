@@ -1,4 +1,5 @@
 // モックデータベース（テスト用）
+import { logger } from '../utils/logger.js';
 interface MockUser {
   id: number;
   username: string;
@@ -102,7 +103,7 @@ export class MockDatabaseConfig {
       created_at: new Date()
     });
     
-    console.log('Mock database initialized');
+    logger.info('Mock database initialized');
   }
 
   static getConnection() {

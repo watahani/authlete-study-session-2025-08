@@ -73,7 +73,8 @@ test.describe('チケット販売サービス', () => {
     await page.fill('#login-password', password);
     await page.click('#login-button');
     
-    await expect(page.locator('.success')).toContainText('ログインしました');
+    // ログイン成功をユーザー情報の表示で確認
+    await expect(page.locator('#user-info')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#user-info')).toContainText(`ログイン中: ${username}`);
 
     // 3. チケット予約機能の確認

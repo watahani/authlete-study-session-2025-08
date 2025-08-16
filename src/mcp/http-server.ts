@@ -54,15 +54,15 @@ export class MCPTicketServer {
   private setupServer(): void {
     // セキュリティヘッダー設定
     this.app.use(helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'"],
-          connectSrc: ["'self'", "https:"],
-          imgSrc: ["'self'", "data:", "https:"],
-        },
-      },
+      // contentSecurityPolicy: {
+      //   directives: {
+      //     defaultSrc: ["'self'"],
+      //     styleSrc: ["'self'", "'unsafe-inline'"],
+      //     scriptSrc: ["'self'"],
+      //     connectSrc: ["'self'", "https:"],
+      //     imgSrc: ["'self'", "data:", "https:"],
+      //   },
+      // },
       crossOriginEmbedderPolicy: false
     }));
 

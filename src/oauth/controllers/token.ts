@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthleteClient } from '../authlete/client.js';
 import { TokenRequest } from '../authlete/types/index.js';
+import { oauthLogger } from '../../utils/logger.js';
 
 export class TokenController {
   private authleteClient: AuthleteClient;
@@ -101,7 +102,7 @@ export class TokenController {
           });
       }
     } catch (error) {
-      console.error('Token endpoint error:', error);
+      oauthLogger.error('Token endpoint error', error);
       res.status(500).json({
         error: 'server_error',
         error_description: 'Internal server error occurred'
@@ -119,7 +120,7 @@ export class TokenController {
         const [clientId, clientSecret] = credentials.split(':');
         return { clientId, clientSecret };
       } catch (error) {
-        console.error('Failed to parse Basic Auth credentials:', error);
+        oauthLogger.error('Failed to parse Basic Auth credentials', error);
       }
     }
 

@@ -1,4 +1,5 @@
 import { MockDatabaseConfig as DatabaseConfig } from '../../config/mock-database.js';
+import { logger } from '../../utils/logger.js';
 
 export interface ConnectionOptions {
   maxConnections?: number;
@@ -35,7 +36,7 @@ export class ConnectionManager {
   async initialize(): Promise<void> {
     try {
       await DatabaseConfig.initialize();
-      console.log('Database connection manager initialized');
+      logger.info('Database connection manager initialized');
     } catch (error) {
       throw new Error(`Failed to initialize connection manager: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -59,7 +60,7 @@ export class ConnectionManager {
         await connection.end();
       }
     } catch (error) {
-      console.warn(`Failed to release connection: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      logger.warn('Failed to release connection', { error: error instanceof Error ? error.message : 'Unknown error' });
     }
   }
 
@@ -90,7 +91,7 @@ export class ConnectionManager {
         // Rollback transaction on error
         await connection.execute('ROLLBACK');
       } catch (rollbackError) {
-        console.error('Failed to rollback transaction:', rollbackError);
+        logger.error('Failed to rollback transaction', rollbackError);
       }
       
       throw error;
@@ -105,7 +106,7 @@ export class ConnectionManager {
       await this.releaseConnection(connection);
       return true;
     } catch (error) {
-      console.error('Database health check failed:', error);
+      logger.error('Database health check failed', error);
       return false;
     }
   }
@@ -128,7 +129,7 @@ export class ConnectionManager {
     try {
       await DatabaseConfig.close();
       this.connectionPool = [];
-      console.log('Database connection manager closed');
+      logger.info('Database connection manager closed');
     } catch (error) {
       throw new Error(`Failed to close connection manager: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }

@@ -1,12 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
-import dotenv from 'dotenv';
-
-// .env ファイルを読み込み
-dotenv.config();
 
 /**
- * HTTPS環境専用のPlaywright設定
- * Self-signed証明書を使用するHTTPS開発サーバー用
+ * OAuth Tests用のPlaywright設定
+ * OAuth認証が有効な状態でテストを実行します
  */
 export default defineConfig({
   testDir: './tests',
@@ -25,46 +21,32 @@ export default defineConfig({
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: 'https://localhost:3443',
 
+    /* Ignore HTTPS certificate errors for self-signed certificates */
+    ignoreHTTPSErrors: true,
+
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
-
-    /* SSL証明書検証を無視 */
-    ignoreHTTPSErrors: true,
   },
 
   /* Configure projects for major browsers */
   projects: [
     {
-      name: 'chromium-https',
-      use: { 
-        ...devices['Desktop Chrome'],
-        ignoreHTTPSErrors: true, // Self-signed証明書のエラーを無視
-      },
+      name: 'oauth-tests',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: ['**/oauth-*.spec.ts'],
     },
-
-    // {
-    //   name: 'firefox-https',
-    //   use: { 
-    //     ...devices['Desktop Firefox'],
-    //     ignoreHTTPSErrors: true,
-    //   },
-    // },
-
-    // {
-    //   name: 'webkit-https',
-    //   use: { 
-    //     ...devices['Desktop Safari'],
-    //     ignoreHTTPSErrors: true,
-    //   },
-    // },
   ],
 
-  /* Run your local HTTPS dev server before starting the tests */
+  /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'npm run dev:https',
+    command: 'MCP_OAUTH_ENABLED=true NODE_ENV=development npm run dev:https',
     url: 'https://localhost:3443',
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
-    ignoreHTTPSErrors: true, // Self-signed証明書のエラーを無視
+    ignoreHTTPSErrors: true,
+    env: {
+      MCP_OAUTH_ENABLED: 'true',
+      NODE_ENV: 'development'
+    }
   },
 });

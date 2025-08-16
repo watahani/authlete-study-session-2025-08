@@ -82,6 +82,30 @@ export class AuthleteClient implements AuthleteApiClient {
   async introspect(request: IntrospectionRequest): Promise<IntrospectionResponse> {
     return this.makeRequest<IntrospectionResponse>('/auth/introspection', request);
   }
+
+  /**
+   * Service Configuration API (GET /api/{serviceId}/service/configuration)
+   * OpenID Provider Metadataを直接返すAPI
+   */
+  async callServiceConfigurationApi(): Promise<any> {
+    const url = `${this.config.baseUrl}/api/${this.config.serviceId}/service/configuration`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${this.config.serviceAccessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Authlete Service Configuration API failed: ${response.status} ${errorBody}`);
+    }
+
+    // このAPIは成功時に直接OpenID Provider Metadataを返す
+    return response.json();
+  }
 }
 
 export const createAuthleteClient = (config: AuthleteConfig): AuthleteClient => {

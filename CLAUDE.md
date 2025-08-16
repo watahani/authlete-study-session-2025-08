@@ -49,6 +49,75 @@ npx playwright test --ui
 
 # テスト結果のレポート表示
 npx playwright show-report
+
+# HTTPS モードでの開発サーバー起動
+npm run dev:https
+```
+
+## デバッグ方法
+
+### Playwright テストデバッグ
+
+Playwright テスト内でブラウザのコンソールログ、ネットワークエラー、リクエスト失敗を収集するには以下のコードを追加する：
+
+```typescript
+test('テスト名', async ({ page }) => {
+  // ブラウザコンソールログを収集
+  page.on('console', msg => {
+    const type = msg.type();
+    const text = msg.text();
+    console.log(`[BROWSER ${type.toUpperCase()}] ${text}`);
+  });
+  
+  // ネットワークエラーやレスポンス失敗を収集
+  page.on('response', response => {
+    if (!response.ok()) {
+      console.log(`[NETWORK ERROR] ${response.status()} ${response.url()}`);
+    }
+  });
+  
+  page.on('requestfailed', request => {
+    console.log(`[REQUEST FAILED] ${request.method()} ${request.url()} - ${request.failure()?.errorText}`);
+  });
+  
+  // テストコード
+});
+```
+
+### サーバーサイドデバッグ
+
+#### ロガーシステムを使用したデバッグ
+
+プロジェクトには構造化ログシステムが実装されており、環境変数でログレベルを制御できる：
+
+```bash
+# デバッグログを有効化してサーバー起動
+LOG_LEVEL=debug npm run dev:https
+
+# 詳細なトレースログまで出力
+LOG_LEVEL=trace npm run dev:https
+
+# テスト実行時のログレベル制御
+TEST_LOG_LEVEL=debug npx playwright test
+```
+
+**利用可能なログレベル**:
+- `error`: エラーのみ
+- `warn`: 警告以上
+- `info`: 情報以上（デフォルト）
+- `debug`: デバッグ情報以上
+- `trace`: すべてのログ
+
+**専用ロガー**:
+- `oauthLogger`: OAuth関連のログ
+- `mcpLogger`: MCP関連のログ  
+- `authleteLogger`: Authlete API関連のログ
+
+#### バックグラウンドサーバーログの確認
+
+```bash
+# バックグラウンドで実行中の npm run dev:https のログを確認
+# BashOutput ツールを使用してリアルタイムログを取得
 ```
 
 ## Git ワークフロー

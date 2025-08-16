@@ -29,6 +29,7 @@ import {
   getUserReservationsToolSchema
 } from './mcp/tools/types/tool-schemas.js';
 import { ToolResult, UserContext } from './mcp/types/mcp-types.js';
+import { logger, mcpLogger } from './utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,6 +41,11 @@ const HTTPS_ENABLED = process.env.HTTPS_ENABLED === 'true';
 const HTTP_PORT = process.env.HTTP_PORT || 3000;
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
 const PORT = HTTPS_ENABLED ? HTTPS_PORT : HTTP_PORT;
+
+// MCP OAuth認証の有効/無効を判定（明示的にfalseまたはテスト環境の場合は無効）
+const MCP_OAUTH_ENABLED = process.env.MCP_OAUTH_ENABLED !== 'false' && 
+                          process.env.NODE_ENV !== 'test' && 
+                          process.env.MCP_ENABLED !== 'false';
 
 const app = express();
 
@@ -60,18 +66,10 @@ const checkSSLCertificates = (): boolean => {
   }
 };
 
+// TODO: CSPの無効化は一時的な対処法です。OAuth consent formの問題を根本的に解決する必要があります
 // セキュリティヘッダー（HTTPS/HTTPに応じて設定）
 const helmetConfig: any = {
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-      scriptSrcAttr: ["'unsafe-inline'"],
-      connectSrc: ["'self'", "https:", "wss:"],
-      imgSrc: ["'self'", "data:", "https:"],
-    },
-  },
+  contentSecurityPolicy: false, // CSPを完全に無効化
   crossOriginEmbedderPolicy: false
 };
 
@@ -107,7 +105,7 @@ app.use(cors({
   origin: corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Id']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Id', 'mcp-protocol-version']
 }));
 
 app.use(express.json({ limit: '10mb' }));
@@ -132,6 +130,24 @@ app.use(passport.session());
 app.use('/auth', authRoutes);
 app.use('/api', ticketRoutes);
 app.use('/oauth', oauthRoutes);
+
+// OAuth 2.0 Metadata Endpoints (RFC 8414)
+import { getAuthorizationServerMetadata } from './oauth/controllers/authorization-server-metadata.js';
+import { getProtectedResourceMetadata } from './oauth/controllers/protected-resource-metadata.js';
+
+// OAuth 2.0 Authorization Server Metadata with CORS - allow all origins for metadata discovery
+const metadataCorsOptions = {
+  origin: '*',
+  methods: ['GET', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'mcp-protocol-version'],
+  credentials: false  // Public metadata doesn't need credentials
+};
+
+app.get('/.well-known/oauth-authorization-server', cors(metadataCorsOptions), getAuthorizationServerMetadata);
+
+// OAuth 2.0 Protected Resource Metadata
+app.get('/.well-known/oauth-protected-resource', getProtectedResourceMetadata);
+app.get('/.well-known/oauth-protected-resource/mcp', getProtectedResourceMetadata);
 
 // テスト用OAuthコールバックエンドポイント
 app.get('/callback', (req, res) => {
@@ -249,8 +265,53 @@ const initializeMCPServer = async (): Promise<void> => {
   // サーバーとトランスポートを接続
   await mcpServer.connect(mcpTransport);
 
+  // OAuth認証ミドルウェアをインポート
+  const { oauthAuthentication } = await import('./oauth/middleware/oauth-middleware.js');
+
+  // MCP OAuth認証ミドルウェアの条件付き適用（実行時に再評価）
+  const getMcpMiddleware = () => {
+    const runtimeOAuthEnabled = process.env.MCP_OAUTH_ENABLED !== 'false' && 
+                                process.env.NODE_ENV !== 'test' && 
+                                process.env.MCP_ENABLED !== 'false';
+    
+    mcpLogger.debug('Runtime OAuth decision', {
+      enabled: runtimeOAuthEnabled,
+      MCP_OAUTH_ENABLED: process.env.MCP_OAUTH_ENABLED,
+      NODE_ENV: process.env.NODE_ENV,
+      MCP_ENABLED: process.env.MCP_ENABLED
+    });
+    
+    return runtimeOAuthEnabled 
+      ? [oauthAuthentication({
+          requiredScopes: ['mcp:tickets:read'], // 基本的な読み取りスコープを要求
+          requireSSL: HTTPS_ENABLED
+        })]
+      : []; // OAuth無効時は認証ミドルウェアをスキップ
+  };
+
+  mcpLogger.info('MCP OAuth Authentication configuration', {
+    enabled: MCP_OAUTH_ENABLED,
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      MCP_OAUTH_ENABLED: process.env.MCP_OAUTH_ENABLED,
+      MCP_ENABLED: process.env.MCP_ENABLED
+    }
+  });
+
   // MCP エンドポイントを追加
-  app.post('/mcp', async (req, res) => {
+  app.post('/mcp', 
+    (req, res, next) => {
+      // 実行時にOAuth設定を再評価してミドルウェアを適用
+      const middleware = getMcpMiddleware();
+      if (middleware.length === 0) {
+        // OAuth無効の場合は直接次の処理に進む
+        next();
+      } else {
+        // OAuth有効の場合は認証ミドルウェアを実行
+        middleware[0](req, res, next);
+      }
+    },
+    async (req, res) => {
     try {
       if (!mcpTransport) {
         return res.status(503).json({
@@ -263,7 +324,7 @@ const initializeMCPServer = async (): Promise<void> => {
       }
       await mcpTransport.handleRequest(req, res, req.body);
     } catch (error) {
-      console.error('MCP request handling failed:', error);
+      mcpLogger.error('MCP request handling failed', error);
       res.status(500).json({
         error: {
           code: -32603,
@@ -285,6 +346,11 @@ const initializeMCPServer = async (): Promise<void> => {
 
   // MCP サーバー情報
   app.get('/mcp/info', (_req, res) => {
+    // 実行時にOAuth設定を再評価
+    const runtimeOAuthEnabled = process.env.MCP_OAUTH_ENABLED !== 'false' && 
+                                process.env.NODE_ENV !== 'test' && 
+                                process.env.MCP_ENABLED !== 'false';
+    
     res.json({
       name: 'authlete-study-session-mcp-server',
       version: '1.0.0',
@@ -297,11 +363,15 @@ const initializeMCPServer = async (): Promise<void> => {
         mcp: '/mcp',
         health: '/mcp/health',
         info: '/mcp/info'
+      },
+      oauth: {
+        enabled: runtimeOAuthEnabled,
+        requiredScopes: runtimeOAuthEnabled ? ['mcp:tickets:read'] : null
       }
     });
   });
 
-  console.log('MCP Server initialized successfully');
+  mcpLogger.info('MCP Server initialized successfully');
 };
 
 // MCP ツール処理
@@ -336,11 +406,11 @@ const startServer = async (): Promise<void> => {
       
       // SSL証明書の確認
       if (!checkSSLCertificates()) {
-        console.error('❌ SSL証明書が見つかりません');
-        console.log('以下のコマンドでSSL証明書を生成してください:');
-        console.log('  npm run generate-ssl');
-        console.log('または:');
-        console.log('  ./scripts/generate-ssl-cert.sh');
+        logger.error('SSL証明書が見つかりません');
+        logger.info('以下のコマンドでSSL証明書を生成してください:');
+        logger.info('  npm run generate-ssl');
+        logger.info('または:');
+        logger.info('  ./scripts/generate-ssl-cert.sh');
         process.exit(1);
       }
 
@@ -360,40 +430,40 @@ const startServer = async (): Promise<void> => {
       const httpsServer = https.createServer(credentials, app);
       
       httpsServer.listen(HTTPS_PORT, () => {
-        console.log(`🔒 HTTPS Server running on https://localhost:${HTTPS_PORT}`);
-        console.log(`🔗 MCP endpoint: https://localhost:${HTTPS_PORT}/mcp`);
-        console.log(`💚 MCP health check: https://localhost:${HTTPS_PORT}/mcp/health`);
-        console.log(`📊 App health check: https://localhost:${HTTPS_PORT}/health`);
+        logger.info(`HTTPS Server running on https://localhost:${HTTPS_PORT}`);
+        logger.info(`MCP endpoint: https://localhost:${HTTPS_PORT}/mcp`);
+        logger.info(`MCP health check: https://localhost:${HTTPS_PORT}/mcp/health`);
+        logger.info(`App health check: https://localhost:${HTTPS_PORT}/health`);
       });
 
       // HTTPサーバーを起動（リダイレクト用）
       httpApp.listen(HTTP_PORT, () => {
-        console.log(`↗️  HTTP Server running on http://localhost:${HTTP_PORT} (redirects to HTTPS)`);
+        logger.info(`HTTP Server running on http://localhost:${HTTP_PORT} (redirects to HTTPS)`);
       });
 
     } else {
       // HTTP モード
       app.listen(PORT, () => {
-        console.log(`🌐 HTTP Server running on http://localhost:${PORT}`);
-        console.log(`🔗 MCP endpoint: http://localhost:${PORT}/mcp`);
-        console.log(`💚 MCP health check: http://localhost:${PORT}/mcp/health`);
-        console.log(`📊 App health check: http://localhost:${PORT}/health`);
+        logger.info(`HTTP Server running on http://localhost:${PORT}`);
+        logger.info(`MCP endpoint: http://localhost:${PORT}/mcp`);
+        logger.info(`MCP health check: http://localhost:${PORT}/mcp/health`);
+        logger.info(`App health check: http://localhost:${PORT}/health`);
       });
     }
   } catch (error) {
-    console.error('Failed to start server:', error);
+    logger.error('Failed to start server', error);
     process.exit(1);
   }
 };
 
 // グレースフルシャットダウン
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
+  logger.info('SIGTERM received, shutting down gracefully');
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
+  logger.info('SIGINT received, shutting down gracefully');
   process.exit(0);
 });
 

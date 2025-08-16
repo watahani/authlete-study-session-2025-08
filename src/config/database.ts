@@ -1,4 +1,5 @@
 import mysql from 'mysql2/promise';
+import { logger } from '../utils/logger.js';
 
 interface DatabaseConnection {
   host: string;
@@ -24,9 +25,9 @@ export class DatabaseConfig {
   static async initialize(): Promise<void> {
     try {
       this.connection = await mysql.createConnection(this.getConfig());
-      console.log('Database connected successfully');
+      logger.info('Database connected successfully');
     } catch (error) {
-      console.error('Database connection failed:', error);
+      logger.error('Database connection failed', error);
       throw error;
     }
   }

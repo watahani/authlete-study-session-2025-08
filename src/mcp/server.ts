@@ -6,6 +6,7 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { mcpLogger } from '../utils/logger.js';
 import { 
   CallToolRequestSchema, 
   ListToolsRequestSchema 
@@ -79,7 +80,7 @@ class MCPTicketServer {
   }
 
   private async handleToolCall(name: string, args: any): Promise<ToolResult> {
-    console.error(`Tool called: ${name} with args:`, JSON.stringify(args, null, 2));
+    mcpLogger.debug(`Tool called: ${name}`, { args });
 
     switch (name) {
       case "list_tickets":
@@ -135,7 +136,7 @@ class MCPTicketServer {
   async run(): Promise<void> {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error(`${mcpConfig.name} running on stdio`);
+    mcpLogger.info(`${mcpConfig.name} running on stdio`);
   }
 }
 
@@ -146,7 +147,7 @@ async function main() {
   try {
     await server.run();
   } catch (error) {
-    console.error("Fatal error:", error);
+    mcpLogger.error('Fatal error', error);
     process.exit(1);
   }
 }
