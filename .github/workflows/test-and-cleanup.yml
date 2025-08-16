@@ -1,0 +1,76 @@
+name: Test and Cleanup DCR Clients
+
+on:
+  push:
+    branches: [ main, feature/* ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Generate SSL certificates
+      run: npm run generate-ssl
+
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps
+
+    - name: Start application in background
+      run: |
+        npm run dev:https &
+        sleep 10  # アプリケーション起動を待機
+      env:
+        AUTHLETE_SERVICE_ACCESS_TOKEN: ${{ secrets.AUTHLETE_SERVICE_ACCESS_TOKEN }}
+        AUTHLETE_SERVICE_ID: ${{ secrets.AUTHLETE_SERVICE_ID }}
+        AUTHLETE_BASE_URL: ${{ secrets.AUTHLETE_BASE_URL }}
+        ORGANIZATION_ACCESS_TOKEN: ${{ secrets.ORGANIZATION_ACCESS_TOKEN }}
+
+    - name: Run DCR tests
+      run: npx playwright test tests/dcr.spec.ts --reporter=list
+      env:
+        AUTHLETE_SERVICE_ACCESS_TOKEN: ${{ secrets.AUTHLETE_SERVICE_ACCESS_TOKEN }}
+        AUTHLETE_SERVICE_ID: ${{ secrets.AUTHLETE_SERVICE_ID }}
+        AUTHLETE_BASE_URL: ${{ secrets.AUTHLETE_BASE_URL }}
+        ORGANIZATION_ACCESS_TOKEN: ${{ secrets.ORGANIZATION_ACCESS_TOKEN }}
+        CI: true
+
+    - name: Run other tests (excluding DCR)
+      run: npx playwright test --ignore="**/dcr.spec.ts" --reporter=list
+      env:
+        AUTHLETE_SERVICE_ACCESS_TOKEN: ${{ secrets.AUTHLETE_SERVICE_ACCESS_TOKEN }}
+        AUTHLETE_SERVICE_ID: ${{ secrets.AUTHLETE_SERVICE_ID }}
+        AUTHLETE_BASE_URL: ${{ secrets.AUTHLETE_BASE_URL }}
+        ORGANIZATION_ACCESS_TOKEN: ${{ secrets.ORGANIZATION_ACCESS_TOKEN }}
+        CI: true
+
+    - name: Cleanup DCR clients (always run)
+      if: always()  # テストが失敗しても実行
+      run: npm run cleanup:dcr:force
+      env:
+        AUTHLETE_SERVICE_ACCESS_TOKEN: ${{ secrets.AUTHLETE_SERVICE_ACCESS_TOKEN }}
+        AUTHLETE_SERVICE_ID: ${{ secrets.AUTHLETE_SERVICE_ID }}
+        AUTHLETE_BASE_URL: ${{ secrets.AUTHLETE_BASE_URL }}
+        ORGANIZATION_ACCESS_TOKEN: ${{ secrets.ORGANIZATION_ACCESS_TOKEN }}
+        CI: true
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: playwright-report
+        path: playwright-report/
+        retention-days: 30

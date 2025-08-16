@@ -2,6 +2,7 @@ import express from 'express';
 import { AuthorizationController } from '../controllers/authorization.js';
 import { TokenController } from '../controllers/token.js';
 import { IntrospectionController } from '../controllers/introspection.js';
+import { DCRController } from '../controllers/dcr.js';
 import { createAuthleteClient, AuthleteClient } from '../authlete/client.js';
 import { getAuthleteConfig } from '../config/authlete-config.js';
 import { oauthLogger } from '../../utils/logger.js';
@@ -13,6 +14,7 @@ let authleteClient: AuthleteClient | null = null;
 let authorizationController: AuthorizationController | null = null;
 let tokenController: TokenController | null = null;
 let introspectionController: IntrospectionController | null = null;
+let dcrController: DCRController | null = null;
 
 // Authleteクライアントの遅延初期化
 function getAuthleteClient(): AuthleteClient {
@@ -22,6 +24,7 @@ function getAuthleteClient(): AuthleteClient {
     authorizationController = new AuthorizationController(authleteClient);
     tokenController = new TokenController(authleteClient);
     introspectionController = new IntrospectionController(authleteClient);
+    dcrController = new DCRController(authleteClient);
   }
   return authleteClient;
 }
@@ -41,6 +44,11 @@ function getIntrospectionController(): IntrospectionController {
   return introspectionController!;
 }
 
+function getDCRController(): DCRController {
+  getAuthleteClient(); // 初期化を確実に行う
+  return dcrController!;
+}
+
 router.get('/authorize', (req, res) => {
   getAuthorizationController().handleAuthorizationRequest(req, res);
 });
@@ -55,6 +63,23 @@ router.post('/token', (req, res) => {
 
 router.post('/introspect', (req, res) => {
   getIntrospectionController().handleIntrospectionRequest(req, res);
+});
+
+// Dynamic Client Registration (DCR) endpoints - RFC 7591/7592
+router.post('/register', (req, res) => {
+  getDCRController().handleClientRegistration(req, res);
+});
+
+router.get('/register/:client_id', (req, res) => {
+  getDCRController().handleClientGet(req, res);
+});
+
+router.put('/register/:client_id', (req, res) => {
+  getDCRController().handleClientUpdate(req, res);
+});
+
+router.delete('/register/:client_id', (req, res) => {
+  getDCRController().handleClientDelete(req, res);
 });
 
 router.get('/authorize/consent', (req, res) => {

@@ -423,14 +423,87 @@ sudo update-ca-certificates
 
 ### MCP クライアント接続例
 
+#### MCP Introspector を使用したテスト
+
+MCP IntrospectorはOAuthのDynamic Client Registration (DCR) に対応しており、自動的にOAuth認証フローを処理します。
+
+**1. 前提条件：SSL証明書の生成**
+
+MCP IntrospectorはHTTPS接続が必要なため、まず自己署名証明書を生成します：
+
 ```bash
-# MCP Introspector での接続
-# 1. OAuth認可フローでアクセストークンを取得
-# 2. 以下のURLで接続（Bearer Tokenヘッダー付き）
-curl -H "Authorization: Bearer ACCESS_TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}' \
-     https://localhost:3443/mcp
+# SSL証明書を生成
+npm run generate-ssl
+```
+
+この証明書生成スクリプト（`scripts/generate-ssl-cert.sh`）は以下を実行します：
+- 2048bit RSA秘密鍵の生成
+- localhost用のX.509証明書の生成
+- Subject Alternative Names (SAN) の設定 (localhost, 127.0.0.1, ::1)
+- 適切なファイル権限の設定
+
+生成される証明書：
+- `ssl/localhost.key` - 秘密鍵
+- `ssl/localhost.crt` - 証明書
+- `ssl/localhost.conf` - OpenSSL設定ファイル
+
+**2. サーバーの起動**
+
+HTTPS + OAuth + MCP統合モードでサーバーを起動：
+
+```bash
+# HTTPS + OAuth + MCP統合サーバー起動
+npm run dev:https
+```
+
+**3. MCP Introspector での接続**
+
+自己署名証明書をNode.jsが認識するよう、`NODE_EXTRA_CA_CERTS`環境変数で証明書を指定してIntrospectorを起動：
+
+```bash
+NODE_EXTRA_CA_CERTS="$PWD/ssl/localhost.crt" \
+npx @modelcontextprotocol/inspector https://localhost:3443/mcp
+```
+
+**4. Introspector での操作**
+
+Introspectorが起動すると：
+
+1. **自動DCR**: IntrospectorがDynamic Client Registrationを自動実行
+2. **OAuth認証**: ブラウザでOAuth認証フローが開始される
+3. **ツール利用**: 認証完了後、MCPツールが利用可能になる
+
+利用可能なツール：
+- `list_tickets` - チケット一覧取得 (スコープ: `mcp:tickets:read`)
+- `search_tickets` - チケット検索 (スコープ: `mcp:tickets:read`)
+- `reserve_ticket` - チケット予約 (スコープ: `mcp:tickets:write`)
+- `cancel_reservation` - 予約キャンセル (スコープ: `mcp:tickets:write`)
+- `get_user_reservations` - 予約履歴取得 (スコープ: `mcp:tickets:read`)
+
+**5. 開発・テスト時の認証バイパス**
+
+開発時は認証を無効化して簡単にテスト可能：
+
+```bash
+# OAuth無効モードでサーバー起動
+MCP_OAUTH_ENABLED=false npm run dev:https
+
+# 認証なしでIntrospector接続（証明書指定）
+NODE_EXTRA_CA_CERTS="$PWD/ssl/localhost.crt" \
+npx @modelcontextprotocol/inspector https://localhost:3443/mcp
+```
+
+**6. 自動テストでの検証**
+
+```bash
+# MCP サーバーテスト（OAuth無効）
+MCP_OAUTH_ENABLED=false npx playwright test tests/mcp-server.spec.ts
+
+# OAuth統合テスト（実際のトークンフロー）
+npx playwright test tests/oauth-token-flow.spec.ts
+
+# DCRテスト（Dynamic Client Registration）
+npx playwright test tests/dcr.spec.ts
 ```
 
 ### 動的OAuth制御

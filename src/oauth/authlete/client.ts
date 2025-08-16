@@ -21,7 +21,7 @@ export class AuthleteClient implements AuthleteApiClient {
     this.config = config;
   }
 
-  private async makeRequest<T>(
+  public async makeRequest<T>(
     endpoint: string,
     body: Record<string, unknown> | { [key: string]: unknown }
   ): Promise<T> {
@@ -41,6 +41,16 @@ export class AuthleteClient implements AuthleteApiClient {
       const responseData = await response.json();
 
       if (!response.ok) {
+        // Authlete APIエラーの詳細ログ
+        console.error('Authlete API Error Details:', {
+          status: response.status,
+          statusText: response.statusText,
+          responseData: responseData,
+          url: url,
+          method: 'POST',
+          body: body
+        });
+        
         const error = new Error(
           `Authlete API error: ${response.status} ${response.statusText}`
         ) as AuthleteError;
@@ -106,6 +116,7 @@ export class AuthleteClient implements AuthleteApiClient {
     // このAPIは成功時に直接OpenID Provider Metadataを返す
     return response.json();
   }
+
 }
 
 export const createAuthleteClient = (config: AuthleteConfig): AuthleteClient => {

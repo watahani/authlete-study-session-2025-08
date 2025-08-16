@@ -97,7 +97,8 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     env: {
       MCP_OAUTH_ENABLED: 'false',
-      NODE_ENV: 'test'
+      NODE_ENV: 'test',
+      LOG_LEVEL: 'debug'
     }
   },
 });
