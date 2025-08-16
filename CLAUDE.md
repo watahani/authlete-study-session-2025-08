@@ -163,4 +163,25 @@ git push origin feature/ticket-search
 ## Git 使用ルール
 
 - **`git add .` は使用禁止**: 変更したファイルを個別に指定して追加する
+- **mainブランチへの直接push禁止**: mainブランチに直接pushすることは絶対に禁止。必ず機能ブランチからプルリクエストを作成する
+- **プルリクエストワークフロー必須**: すべての変更はプルリクエストを通してmainブランチにマージする
 - コミット前に必ず変更内容を確認し、意図しないファイルが含まれていないことを確認する
+
+### ⚠️ 重要な禁止事項
+
+以下の行為は開発ワークフローを破綻させるため絶対に行わない：
+
+1. **mainブランチでの直接作業・コミット・push**
+2. **緊急時でもmainブランチへの直接push**
+3. **ドキュメント修正であってもmainブランチへの直接push**
+
+**正しいワークフロー**:
+```bash
+# 正しい手順
+git checkout -b fix/documentation-update
+# ファイルを編集
+git add path/to/specific/file.md
+git commit -m "docs: update documentation"
+git push origin fix/documentation-update
+# GitHubでプルリクエストを作成・マージ
+```
