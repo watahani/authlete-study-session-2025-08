@@ -37,8 +37,9 @@ if (!SERVICE_ACCESS_TOKEN || !SERVICE_ID) {
 }
 
 if (!ORGANIZATION_ACCESS_TOKEN) {
-  console.error('❌ ORGANIZATION_ACCESS_TOKEN が設定されていません（クライアント削除には必要）');
-  process.exit(1);
+  console.warn('⚠️  ORGANIZATION_ACCESS_TOKEN が設定されていません');
+  console.warn('ℹ️  DCRクライアントの削除はスキップされます（CI環境では正常な動作です）');
+  process.exit(0);
 }
 
 /**
