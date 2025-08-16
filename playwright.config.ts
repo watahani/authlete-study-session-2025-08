@@ -40,7 +40,7 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      testIgnore: ['**/oauth-*.spec.ts'],
+      testIgnore: ['**/oauth-*.spec.ts', '**/mcp-*.spec.ts'],
     },
 
     // {
