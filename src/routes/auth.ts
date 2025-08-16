@@ -146,8 +146,8 @@ router.post('/login', (req, res, next) => {
         
         // OAuth認可フローからのリダイレクト処理
         if (ticket) {
-          logger.debug('Redirecting to consent with ticket', { ticket });
-          return res.redirect(`/oauth/authorize/consent?ticket=${ticket}`);
+          logger.debug('Redirecting to consent without ticket in URL', { ticketExists: !!ticket });
+          return res.redirect('/oauth/authorize/consent');
         }
         
         // 通常のリダイレクト処理

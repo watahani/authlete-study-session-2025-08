@@ -152,10 +152,10 @@ export class AuthorizationController {
 
       if (req.user) {
         oauthLogger.debug('User authenticated, redirecting to consent');
-        res.redirect(`/oauth/authorize/consent?ticket=${response.ticket}`);
+        res.redirect('/oauth/authorize/consent');
       } else {
         oauthLogger.debug('User not authenticated, redirecting to login');
-        res.redirect(`/auth/login?ticket=${response.ticket}&return_to=${encodeURIComponent(req.originalUrl)}`);
+        res.redirect(`/auth/login?return_to=${encodeURIComponent('/oauth/authorize/consent')}`);
       }
     });
   }

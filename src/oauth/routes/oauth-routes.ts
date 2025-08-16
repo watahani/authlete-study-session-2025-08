@@ -58,13 +58,11 @@ router.post('/introspect', (req, res) => {
 });
 
 router.get('/authorize/consent', (req, res) => {
-  const { ticket } = req.query;
   const { oauthTicket, oauthClient, oauthScopes } = req.session;
   
-  // セッションデバッグ情報
+  // セッションデバッグ情報（ticketはURLから削除）
   oauthLogger.debug('Consent page session debug', {
     sessionId: req.session.id,
-    queryTicket: ticket,
     sessionTicket: oauthTicket,
     hasClient: !!oauthClient,
     hasScopes: !!oauthScopes,
@@ -81,18 +79,9 @@ router.get('/authorize/consent', (req, res) => {
     });
   }
 
-  // ticketパラメータとセッションのticketが一致するか確認
-  if (ticket !== oauthTicket) {
-    oauthLogger.warn('Ticket mismatch', { queryTicket: ticket, sessionTicket: oauthTicket });
-    return res.status(400).json({
-      error: 'invalid_request',
-      error_description: 'Invalid authorization ticket'
-    });
-  }
-
   // ユーザー認証確認
   if (!req.user) {
-    return res.redirect(`/auth/login?ticket=${ticket}&return_to=${encodeURIComponent(req.originalUrl)}`);
+    return res.redirect(`/auth/login?return_to=${encodeURIComponent(req.originalUrl)}`);
   }
 
   res.send(`
