@@ -123,13 +123,11 @@ router.get('/authorize/consent', (req, res) => {
 
       <div class="buttons">
         <form action="/oauth/authorize/decision" method="post" style="display: inline;">
-          <input type="hidden" name="ticket" value="${oauthTicket}">
           <input type="hidden" name="authorized" value="true">
           <button type="submit" class="approve">許可する</button>
         </form>
         
         <form action="/oauth/authorize/decision" method="post" style="display: inline;">
-          <input type="hidden" name="ticket" value="${oauthTicket}">
           <input type="hidden" name="authorized" value="false">
           <button type="submit" class="deny">拒否する</button>
         </form>
@@ -163,25 +161,23 @@ router.post('/authorize/decision', async (req, res) => {
   });
   
   try {
-    const { ticket, authorized } = req.body;
+    const { authorized } = req.body;
     const user = req.user as any;
     const { oauthTicket, oauthClient, oauthScopes } = req.session;
     
     oauthLogger.debug('Decision processing', {
-      ticket: ticket,
       authorized: authorized,
       hasUser: !!user,
       sessionData: {
-        oauthTicket: oauthTicket,
+        oauthTicket: !!oauthTicket,
         hasClient: !!oauthClient,
         hasScopes: !!oauthScopes
       }
     });
 
-    // セッション情報とticketの検証
-    if (!ticket || !user || !oauthTicket || !oauthClient || !oauthScopes) {
+    // セッション情報の検証
+    if (!user || !oauthTicket || !oauthClient || !oauthScopes) {
       oauthLogger.warn('Missing required data', { 
-        ticket: !!ticket, 
         user: !!user, 
         oauthTicket: !!oauthTicket, 
         oauthClient: !!oauthClient, 
@@ -193,14 +189,8 @@ router.post('/authorize/decision', async (req, res) => {
       });
     }
 
-    // ticketの一致確認
-    if (ticket !== oauthTicket) {
-      oauthLogger.warn('Ticket mismatch in decision', { bodyTicket: ticket, sessionTicket: oauthTicket });
-      return res.status(400).json({
-        error: 'invalid_request',
-        error_description: 'Invalid authorization ticket'
-      });
-    }
+    // セッションからticketを取得
+    const ticket = oauthTicket;
 
     if (authorized === 'true') {
       const issueResponse = await (getAuthleteClient() as any).makeRequest('/auth/authorization/issue', {
@@ -220,21 +210,69 @@ router.post('/authorize/decision', async (req, res) => {
         });
       }
     } else {
-      const failResponse = await (getAuthleteClient() as any).makeRequest('/auth/authorization/fail', {
-        ticket,
-        reason: 'DENIED'
+      // 同意拒否時の処理
+      oauthLogger.debug('Processing consent denial', {
+        ticket: ticket,
+        user: user.username
       });
 
-      if (failResponse.action === 'LOCATION') {
-        res.redirect(failResponse.responseContent);
-      } else if (failResponse.action === 'FORM') {
-        res.setHeader('Content-Type', 'text/html; charset=UTF-8');
-        res.send(failResponse.responseContent);
-      } else {
-        res.status(500).json({
-          error: 'server_error',
-          error_description: 'Failed to generate authorization error response'
-        });
+      const failResponse = await (getAuthleteClient() as any).makeRequest('/auth/authorization/fail', {
+        ticket,
+        reason: 'DENIED',
+        description: 'User denied the authorization request'
+      });
+
+      oauthLogger.debug('Authlete fail response', {
+        action: failResponse.action,
+        resultCode: failResponse.resultCode,
+        resultMessage: failResponse.resultMessage,
+        hasResponseContent: !!failResponse.responseContent
+      });
+
+      // Cache-Control と Pragma ヘッダーを設定
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Pragma', 'no-cache');
+
+      switch (failResponse.action) {
+        case 'INTERNAL_SERVER_ERROR':
+          oauthLogger.error('Authlete internal server error during authorization failure', {
+            resultCode: failResponse.resultCode,
+            resultMessage: failResponse.resultMessage
+          });
+          res.status(500).setHeader('Content-Type', 'application/json').send(failResponse.responseContent);
+          break;
+
+        case 'BAD_REQUEST':
+          oauthLogger.warn('Bad request during authorization failure', {
+            resultCode: failResponse.resultCode,
+            resultMessage: failResponse.resultMessage
+          });
+          res.status(400).setHeader('Content-Type', 'application/json').send(failResponse.responseContent);
+          break;
+
+        case 'LOCATION':
+          oauthLogger.debug('Redirecting client after consent denial', {
+            redirectUri: failResponse.responseContent
+          });
+          res.redirect(failResponse.responseContent);
+          break;
+
+        case 'FORM':
+          oauthLogger.debug('Returning form response after consent denial');
+          res.setHeader('Content-Type', 'text/html; charset=UTF-8');
+          res.send(failResponse.responseContent);
+          break;
+
+        default:
+          oauthLogger.error('Unexpected action from Authlete fail API', {
+            action: failResponse.action,
+            resultCode: failResponse.resultCode,
+            resultMessage: failResponse.resultMessage
+          });
+          res.status(500).json({
+            error: 'server_error',
+            error_description: 'Failed to generate authorization error response'
+          });
       }
     }
 
