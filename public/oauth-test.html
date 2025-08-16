@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth認可コードフローテスト</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+        .container { background: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .form-group { margin: 15px 0; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select, textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .info { background: #e7f3ff; padding: 15px; border-radius: 4px; border-left: 4px solid #007bff; }
+        .result { background: #f0f0f0; padding: 15px; border-radius: 4px; margin-top: 20px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>OAuth 2.1 認可コードフローテスト</h1>
+    
+    <div class="info">
+        <h3>作成されたクライアント情報</h3>
+        <ul>
+            <li><strong>Test Client ID:</strong> 2701499366</li>
+            <li><strong>Client Secret:</strong> BskQUERTo76KUYy4gKnyKDjkkph-4wjYF-4Bw34cfYAGRS6eJ4k9YfFbFjSoOHBI9DwjgyTngDlJsf6s71BOYg</li>
+            <li><strong>MCP Client ID:</strong> 3006291287 (Public Client)</li>
+        </ul>
+    </div>
+
+    <div class="container">
+        <h3>1. 認可リクエスト設定</h3>
+        <div class="form-group">
+            <label for="client_id">Client ID:</label>
+            <input type="text" id="client_id" value="2701499366">
+        </div>
+        <div class="form-group">
+            <label for="redirect_uri">Redirect URI:</label>
+            <input type="text" id="redirect_uri" value="https://localhost:3443/callback">
+        </div>
+        <div class="form-group">
+            <label for="scope">Scope:</label>
+            <input type="text" id="scope" value="tickets:read tickets:write profile:read">
+        </div>
+        <div class="form-group">
+            <label for="state">State (optional):</label>
+            <input type="text" id="state" value="test-state-123">
+        </div>
+        
+        <button onclick="startAuthorizationFlow()">認可フローを開始</button>
+    </div>
+
+    <div class="container">
+        <h3>2. PKCE設定（推奨）</h3>
+        <div class="form-group">
+            <label for="code_verifier">Code Verifier:</label>
+            <input type="text" id="code_verifier" readonly>
+        </div>
+        <div class="form-group">
+            <label for="code_challenge">Code Challenge (SHA256):</label>
+            <input type="text" id="code_challenge" readonly>
+        </div>
+        <button onclick="generatePKCE()">PKCEパラメータ生成</button>
+    </div>
+
+    <div class="container">
+        <h3>3. トークン交換</h3>
+        <div class="form-group">
+            <label for="auth_code">認可コード:</label>
+            <input type="text" id="auth_code" placeholder="認可レスポンスから取得したコード">
+        </div>
+        <div class="form-group">
+            <label for="client_secret">Client Secret:</label>
+            <input type="text" id="client_secret" value="BskQUERTo76KUYy4gKnyKDjkkph-4wjYF-4Bw34cfYAGRS6eJ4k9YfFbFjSoOHBI9DwjgyTngDlJsf6s71BOYg">
+        </div>
+        <button onclick="exchangeCodeForToken()">トークン取得</button>
+    </div>
+
+    <div id="result" class="result" style="display: none;">
+        <h4>結果:</h4>
+        <pre id="result_text"></pre>
+    </div>
+
+    <script>
+        // PKCEパラメータ生成
+        async function generatePKCE() {
+            const codeVerifier = generateCodeVerifier();
+            const codeChallenge = await generateCodeChallenge(codeVerifier);
+            
+            document.getElementById('code_verifier').value = codeVerifier;
+            document.getElementById('code_challenge').value = codeChallenge;
+        }
+
+        function generateCodeVerifier() {
+            const array = new Uint8Array(32);
+            crypto.getRandomValues(array);
+            return base64URLEncode(array);
+        }
+
+        async function generateCodeChallenge(verifier) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(verifier);
+            const digest = await crypto.subtle.digest('SHA-256', data);
+            return base64URLEncode(new Uint8Array(digest));
+        }
+
+        function base64URLEncode(array) {
+            return btoa(String.fromCharCode(...array))
+                .replace(/=/g, '')
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_');
+        }
+
+        // 認可フロー開始
+        function startAuthorizationFlow() {
+            const clientId = document.getElementById('client_id').value;
+            const redirectUri = document.getElementById('redirect_uri').value;
+            const scope = document.getElementById('scope').value;
+            const state = document.getElementById('state').value;
+            const codeChallenge = document.getElementById('code_challenge').value;
+
+            const authUrl = new URL('https://localhost:3443/oauth/authorize');
+            authUrl.searchParams.set('response_type', 'code');
+            authUrl.searchParams.set('client_id', clientId);
+            authUrl.searchParams.set('redirect_uri', redirectUri);
+            authUrl.searchParams.set('scope', scope);
+            
+            if (state) {
+                authUrl.searchParams.set('state', state);
+            }
+            
+            if (codeChallenge) {
+                authUrl.searchParams.set('code_challenge', codeChallenge);
+                authUrl.searchParams.set('code_challenge_method', 'S256');
+            }
+
+            showResult('認可リクエストURL:\n' + authUrl.toString() + '\n\nこのURLにアクセスして認可を行ってください。');
+            
+            // 新しいタブで認可リクエストを開く
+            window.open(authUrl.toString(), '_blank');
+        }
+
+        // トークン取得
+        async function exchangeCodeForToken() {
+            const authCode = document.getElementById('auth_code').value;
+            const clientId = document.getElementById('client_id').value;
+            const clientSecret = document.getElementById('client_secret').value;
+            const redirectUri = document.getElementById('redirect_uri').value;
+            const codeVerifier = document.getElementById('code_verifier').value;
+
+            if (!authCode) {
+                alert('認可コードを入力してください');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('grant_type', 'authorization_code');
+            formData.append('code', authCode);
+            formData.append('redirect_uri', redirectUri);
+            formData.append('client_id', clientId);
+            formData.append('client_secret', clientSecret);
+            
+            if (codeVerifier) {
+                formData.append('code_verifier', codeVerifier);
+            }
+
+            try {
+                const response = await fetch('https://localhost:3443/oauth/token', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.text();
+                showResult('Token Response (Status: ' + response.status + '):\n' + result);
+            } catch (error) {
+                showResult('Error: ' + error.message);
+            }
+        }
+
+        function showResult(text) {
+            document.getElementById('result_text').textContent = text;
+            document.getElementById('result').style.display = 'block';
+        }
+
+        // ページ読み込み時にPKCEパラメータを生成
+        window.onload = function() {
+            generatePKCE();
+        };
+    </script>
+</body>
+</html>

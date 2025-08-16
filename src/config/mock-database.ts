@@ -85,11 +85,23 @@ let tickets: MockTicket[] = [
   }
 ];
 let reservations: MockReservation[] = [];
-let nextUserId = 1;
+let nextUserId = 2;
 let nextReservationId = 1;
 
 export class MockDatabaseConfig {
   static async initialize(): Promise<void> {
+    // テスト用ユーザーを初期化
+    const bcrypt = await import('bcryptjs');
+    const testUserPassword = await bcrypt.default.hash('testpass', 10);
+    
+    users.push({
+      id: 1,
+      username: 'testuser',
+      password: testUserPassword,
+      email: 'test@example.com',
+      created_at: new Date()
+    });
+    
     console.log('Mock database initialized');
   }
 

@@ -49,3 +49,26 @@ export interface LoginRequest {
 export interface ReserveTicketRequest {
   seats: number;
 }
+
+export interface OAuthClient {
+  clientId: number;
+  clientIdAlias?: string;
+  clientIdAliasEnabled?: boolean;
+  clientName?: string;
+  logoUri?: string;
+  number?: number;
+}
+
+export interface OAuthScope {
+  defaultEntry: boolean;
+  description: string;
+  name: string;
+}
+
+declare module 'express-session' {
+  interface SessionData {
+    oauthTicket?: string;
+    oauthClient?: OAuthClient;
+    oauthScopes?: OAuthScope[];
+  }
+}
