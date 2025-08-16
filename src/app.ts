@@ -29,6 +29,7 @@ import {
   getUserReservationsToolSchema
 } from './mcp/tools/types/tool-schemas.js';
 import { ToolResult, UserContext } from './mcp/types/mcp-types.js';
+import { logger, mcpLogger } from './utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -273,10 +274,12 @@ const initializeMCPServer = async (): Promise<void> => {
                                 process.env.NODE_ENV !== 'test' && 
                                 process.env.MCP_ENABLED !== 'false';
     
-    console.log(`Runtime OAuth decision: ${runtimeOAuthEnabled ? 'ENABLED' : 'DISABLED'}`);
-    console.log(`  MCP_OAUTH_ENABLED: ${process.env.MCP_OAUTH_ENABLED}`);
-    console.log(`  NODE_ENV: ${process.env.NODE_ENV}`);
-    console.log(`  MCP_ENABLED: ${process.env.MCP_ENABLED}`);
+    mcpLogger.debug('Runtime OAuth decision', {
+      enabled: runtimeOAuthEnabled,
+      MCP_OAUTH_ENABLED: process.env.MCP_OAUTH_ENABLED,
+      NODE_ENV: process.env.NODE_ENV,
+      MCP_ENABLED: process.env.MCP_ENABLED
+    });
     
     return runtimeOAuthEnabled 
       ? [oauthAuthentication({
@@ -286,12 +289,14 @@ const initializeMCPServer = async (): Promise<void> => {
       : []; // OAuth無効時は認証ミドルウェアをスキップ
   };
 
-  console.log(`MCP OAuth Authentication: ${MCP_OAUTH_ENABLED ? 'ENABLED' : 'DISABLED'}`);
-  console.log(`Environment Variables:`);
-  console.log(`  NODE_ENV=${process.env.NODE_ENV}`);
-  console.log(`  MCP_OAUTH_ENABLED=${process.env.MCP_OAUTH_ENABLED}`);
-  console.log(`  MCP_ENABLED=${process.env.MCP_ENABLED}`);
-  console.log(`Decision: OAuth ${MCP_OAUTH_ENABLED ? 'ENABLED' : 'DISABLED'} for MCP endpoints`);
+  mcpLogger.info('MCP OAuth Authentication configuration', {
+    enabled: MCP_OAUTH_ENABLED,
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      MCP_OAUTH_ENABLED: process.env.MCP_OAUTH_ENABLED,
+      MCP_ENABLED: process.env.MCP_ENABLED
+    }
+  });
 
   // MCP エンドポイントを追加
   app.post('/mcp', 
@@ -319,7 +324,7 @@ const initializeMCPServer = async (): Promise<void> => {
       }
       await mcpTransport.handleRequest(req, res, req.body);
     } catch (error) {
-      console.error('MCP request handling failed:', error);
+      mcpLogger.error('MCP request handling failed', error);
       res.status(500).json({
         error: {
           code: -32603,
@@ -366,7 +371,7 @@ const initializeMCPServer = async (): Promise<void> => {
     });
   });
 
-  console.log('MCP Server initialized successfully');
+  mcpLogger.info('MCP Server initialized successfully');
 };
 
 // MCP ツール処理
@@ -401,11 +406,11 @@ const startServer = async (): Promise<void> => {
       
       // SSL証明書の確認
       if (!checkSSLCertificates()) {
-        console.error('❌ SSL証明書が見つかりません');
-        console.log('以下のコマンドでSSL証明書を生成してください:');
-        console.log('  npm run generate-ssl');
-        console.log('または:');
-        console.log('  ./scripts/generate-ssl-cert.sh');
+        logger.error('SSL証明書が見つかりません');
+        logger.info('以下のコマンドでSSL証明書を生成してください:');
+        logger.info('  npm run generate-ssl');
+        logger.info('または:');
+        logger.info('  ./scripts/generate-ssl-cert.sh');
         process.exit(1);
       }
 
@@ -425,40 +430,40 @@ const startServer = async (): Promise<void> => {
       const httpsServer = https.createServer(credentials, app);
       
       httpsServer.listen(HTTPS_PORT, () => {
-        console.log(`🔒 HTTPS Server running on https://localhost:${HTTPS_PORT}`);
-        console.log(`🔗 MCP endpoint: https://localhost:${HTTPS_PORT}/mcp`);
-        console.log(`💚 MCP health check: https://localhost:${HTTPS_PORT}/mcp/health`);
-        console.log(`📊 App health check: https://localhost:${HTTPS_PORT}/health`);
+        logger.info(`HTTPS Server running on https://localhost:${HTTPS_PORT}`);
+        logger.info(`MCP endpoint: https://localhost:${HTTPS_PORT}/mcp`);
+        logger.info(`MCP health check: https://localhost:${HTTPS_PORT}/mcp/health`);
+        logger.info(`App health check: https://localhost:${HTTPS_PORT}/health`);
       });
 
       // HTTPサーバーを起動（リダイレクト用）
       httpApp.listen(HTTP_PORT, () => {
-        console.log(`↗️  HTTP Server running on http://localhost:${HTTP_PORT} (redirects to HTTPS)`);
+        logger.info(`HTTP Server running on http://localhost:${HTTP_PORT} (redirects to HTTPS)`);
       });
 
     } else {
       // HTTP モード
       app.listen(PORT, () => {
-        console.log(`🌐 HTTP Server running on http://localhost:${PORT}`);
-        console.log(`🔗 MCP endpoint: http://localhost:${PORT}/mcp`);
-        console.log(`💚 MCP health check: http://localhost:${PORT}/mcp/health`);
-        console.log(`📊 App health check: http://localhost:${PORT}/health`);
+        logger.info(`HTTP Server running on http://localhost:${PORT}`);
+        logger.info(`MCP endpoint: http://localhost:${PORT}/mcp`);
+        logger.info(`MCP health check: http://localhost:${PORT}/mcp/health`);
+        logger.info(`App health check: http://localhost:${PORT}/health`);
       });
     }
   } catch (error) {
-    console.error('Failed to start server:', error);
+    logger.error('Failed to start server', error);
     process.exit(1);
   }
 };
 
 // グレースフルシャットダウン
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
+  logger.info('SIGTERM received, shutting down gracefully');
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
+  logger.info('SIGINT received, shutting down gracefully');
   process.exit(0);
 });
 

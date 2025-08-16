@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthleteClient, createAuthleteClient } from '../authlete/client.js';
 import { getAuthleteConfig } from '../config/authlete-config.js';
+import { oauthLogger } from '../../utils/logger.js';
 
 /**
  * OAuth 2.0 Authorization Server Metadata (RFC 8414)
@@ -20,6 +21,7 @@ export const getAuthorizationServerMetadata = async (req: Request, res: Response
     // Authlete から取得したメタデータにMCP向けスコープを追加
     const extendedMetadata = {
       ...serviceMetadata,
+      "code_challenge_methods_supported": ["S256"]
     };
 
     res.set('Content-Type', 'application/json');
@@ -28,7 +30,7 @@ export const getAuthorizationServerMetadata = async (req: Request, res: Response
     res.json(extendedMetadata);
     
   } catch (error) {
-    console.error('Authorization server metadata error:', error);
+    oauthLogger.error('Authorization server metadata error', error);
     res.status(500).json({
       error: 'server_error',
       error_description: 'Unable to generate authorization server metadata'
