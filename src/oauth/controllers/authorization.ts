@@ -103,7 +103,10 @@ export class AuthorizationController {
       return;
     }
 
-    // レスポンス情報をマスクしてログ出力（機密情報を除外）
+    oauthLogger.debug('Authlete response debug', response);
+
+
+    // デバッグ: Authleteレスポンスの内容をログ出力
     oauthLogger.debug('Authlete response debug', {
       action: response.action,
       ticket: !!response.ticket,

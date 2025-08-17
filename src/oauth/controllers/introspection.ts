@@ -58,15 +58,7 @@ export class IntrospectionController {
           }
         });
 
-        oauthLogger.debug('Returning successful introspection response', {
-          active: responseData.active,
-          scope: responseData.scope,
-          client_id: responseData.client_id,
-          token_type: responseData.token_type,
-          hasExpiry: !!responseData.exp,
-          hasIssuedAt: !!responseData.iat,
-          hasSubject: !!responseData.sub
-        });
+        oauthLogger.debug('Returning successful introspection response', responseData);
         res.json(responseData);
       } else {
         // トークンが無効な場合
