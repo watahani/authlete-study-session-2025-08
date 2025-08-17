@@ -43,7 +43,7 @@ export default defineConfig({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'HTTPS_ENABLED=true npm run dev:https',
+    command: 'MCP_OAUTH_ENABLED=true npm run dev',
     url: 'https://localhost:3443',
     reuseExistingServer: !process.env.CI, // CI環境では既存サーバーを再利用しない
     timeout: 120 * 1000,
