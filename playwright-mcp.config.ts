@@ -1,25 +1,23 @@
 import { defineConfig, devices } from '@playwright/test';
 import * as dotenv from 'dotenv';
 
-/**
- * Read environment variables from file.
- * https://github.com/motdotla/dotenv
- */
+// 環境変数を明示的に読み込み
 dotenv.config();
 
 /**
- * See https://playwright.dev/docs/test-configuration.
+ * MCPテスト用のPlaywright設定
+ * OAuth無効モードでサーバーを起動してMCPテストを実行
  */
 export default defineConfig({
   testDir: './tests',
   /* Run tests in files in parallel */
-  fullyParallel: true,
+  fullyParallel: false, // MCPテストはシリアル実行
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
   /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1, // MCPテストは単一ワーカーで実行
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
@@ -39,57 +37,13 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      testIgnore: ['**/oauth-*.spec.ts', '**/mcp-*.spec.ts'],
+      testMatch: '**/mcp-*.spec.ts', // MCPテストのみを実行
     },
-
-    // {
-    //   name: 'firefox',
-    //   use: { ...devices['Desktop Firefox'] },
-    // },
-    // {
-    //   name: 'firefox-https',
-    //   use: { 
-    //     ...devices['Desktop Firefox'],
-    //     ignoreHTTPSErrors: true,
-    //   },
-    // },
-
-    // {
-    //   name: 'webkit',
-    //   use: { ...devices['Desktop Safari'] },
-    // },
-    // {
-    //   name: 'webkit-https',
-    //   use: { 
-    //     ...devices['Desktop Safari'],
-    //     ignoreHTTPSErrors: true,
-    //   },
-    // },
-
-    /* Test against mobile viewports. */
-    // {
-    //   name: 'Mobile Chrome',
-    //   use: { ...devices['Pixel 5'] },
-    // },
-    // {
-    //   name: 'Mobile Safari',
-    //   use: { ...devices['iPhone 12'] },
-    // },
-
-    /* Test against branded browsers. */
-    // {
-    //   name: 'Microsoft Edge',
-    //   use: { ...devices['Desktop Edge'], channel: 'msedge' },
-    // },
-    // {
-    //   name: 'Google Chrome',
-    //   use: { ...devices['Desktop Chrome'], channel: 'chrome' },
-    // },
   ],
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'MCP_OAUTH_ENABLED=false npm run dev:https',
+    command: 'HTTPS_ENABLED=true MCP_OAUTH_ENABLED=false npm run dev:https',
     url: 'https://localhost:3443',
     reuseExistingServer: !process.env.CI, // CI環境では既存サーバーを再利用しない
     timeout: 120 * 1000,

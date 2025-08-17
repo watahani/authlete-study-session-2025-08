@@ -30,18 +30,18 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
     page.on('console', msg => {
       const type = msg.type();
       const text = msg.text();
-      console.log(`[BROWSER ${type.toUpperCase()}] ${text}`);
+      testLogger.info(`[BROWSER ${type.toUpperCase()}] ${text}`);
     });
     
     // ネットワークエラーやレスポンス失敗を収集
     page.on('response', response => {
       if (!response.ok()) {
-        console.log(`[NETWORK ERROR] ${response.status()} ${response.url()}`);
+        testLogger.warn(`[NETWORK ERROR] ${response.status()} ${response.url()}`);
       }
     });
     
     page.on('requestfailed', request => {
-      console.log(`[REQUEST FAILED] ${request.method()} ${request.url()} - ${request.failure()?.errorText}`);
+      testLogger.error(`[REQUEST FAILED] ${request.method()} ${request.url()} - ${request.failure()?.errorText}`);
     });
     
     // Authorization code取得用の変数とイベントリスナー
@@ -119,29 +119,29 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
     // 5. ログイン後の遷移を待機（consent または authorize）
     await page.waitForTimeout(3000); // 遷移待機
     
-    console.log('Current URL after login:', page.url());
-    console.log('Current page title:', await page.title());
+    testLogger.info('Current URL after login:', page.url());
+    testLogger.info('Current page title:', await page.title());
     
     // ログイン後の遷移先を確認してから処理
     let loginCurrentUrl = page.url();
     let retries = 0;
     while (loginCurrentUrl.includes('/auth/login') && retries < 5) {
-      console.log(`Still on login page, waiting... (retry ${retries + 1})`);
+      testLogger.info(`Still on login page, waiting... (retry ${retries + 1})`);
       await page.waitForTimeout(2000);
       loginCurrentUrl = page.url();
       retries++;
     }
     
-    console.log('Final URL after retries:', loginCurrentUrl);
+    testLogger.info('Final URL after retries:', loginCurrentUrl);
     
     // コンセントページまたは認可コールバックを待機
     if (loginCurrentUrl.includes('/oauth/authorize/consent')) {
       const bodyText = await page.textContent('body');
-      console.log('Consent page body:', bodyText);
+      testLogger.info('Consent page body:', bodyText);
       
       // エラーページの場合はスキップ
       if (bodyText?.includes('error') || bodyText?.includes('invalid_request')) {
-        console.log('Error detected on consent page, skipping consent checks');
+        testLogger.warn('Error detected on consent page, skipping consent checks');
       } else {
         // 同意ページの内容確認
         expect(bodyText).toContain('mcp:tickets:read');
@@ -150,17 +150,17 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
       }
 
       // 同意フォームの送信を直接実行
-      console.log('Looking for consent form...');
+      testLogger.info('Looking for consent form...');
       
       // 承認ボタンを直接クリック（最もシンプルなアプローチ）
       try {
-        console.log('Clicking approval button...');
+        testLogger.info('Clicking approval button...');
         
         // ページでJavaScriptを無効にして、ネイティブフォーム送信を使用
         const approvalButton = await page.locator('button.approve').first();
         
         if (await approvalButton.isVisible()) {
-          console.log('Approval button is visible, clicking...');
+          testLogger.info('Approval button is visible, clicking...');
           
           // 認可ボタンをクリック（302リダイレクトを待機）
           await approvalButton.click();
@@ -172,17 +172,17 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
             waitAttempts++;
           }
           
-          console.log('Authorization code check after click:', authorizationCode ? 'Found' : 'Not found');
+          testLogger.info('Authorization code check after click:', authorizationCode ? 'Found' : 'Not found');
         } else {
-          console.log('Approval button not visible');
+          testLogger.warn('Approval button not visible');
         }
         
       } catch (error) {
-        console.log('Button click failed:', error);
+        testLogger.error('Button click failed:', error);
       }
       
       // 認可コードが302リダイレクトから取得できているかチェック
-      console.log('Final authorization code status:', authorizationCode ? 'Available' : 'Missing');
+      testLogger.info('Final authorization code status:', authorizationCode ? 'Available' : 'Missing');
     } else if (loginCurrentUrl.includes('/auth/login')) {
       // まだログインページにいる場合は、認証が失敗している可能性
       testLogger.warn('Still on login page after retries, checking for errors');
@@ -195,26 +195,26 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
     }
 
     // 6. 認可コードの最終確認（302リダイレクトから取得済み）
-    console.log('Final check - Authorization code:', authorizationCode ? 'Available' : 'Missing');
-    console.log('Final check - State:', state);
+    testLogger.info('Final check - Authorization code:', authorizationCode ? 'Available' : 'Missing');
+    testLogger.debug('Final check - State:', state);
     
     if (!authorizationCode) {
-      console.error('Authorization code was not obtained from 302 redirect');
-      console.error('Current page URL:', page.url());
-      console.error('Page title:', await page.title());
+      testLogger.error('Authorization code was not obtained from 302 redirect');
+      testLogger.error('Current page URL:', page.url());
+      testLogger.error('Page title:', await page.title());
       const bodyText = await page.textContent('body');
-      console.error('Page body content:', bodyText?.substring(0, 500) + '...');
+      testLogger.debug('Page body content:', bodyText?.substring(0, 500) + '...');
     }
 
     expect(authorizationCode).toBeTruthy();
     expect(state).toBe('test_state_123');
 
-    console.log('Authorization code obtained:', authorizationCode?.substring(0, 10) + '...');
-    console.log('Authorization code length:', authorizationCode?.length);
-    console.log('Final callback URL:', page.url());
+    testLogger.debug('Authorization code obtained:', authorizationCode?.substring(0, 10) + '...');
+    testLogger.debug('Authorization code length:', authorizationCode?.length);
+    testLogger.info('Final callback URL:', page.url());
 
     // 7. トークンエンドポイントでアクセストークンを取得
-    console.log('Making token request with the following parameters:');
+    testLogger.info('Making token request with the following parameters:');
     const tokenRequestData = {
       grant_type: 'authorization_code',
       client_id: clientId,
@@ -222,7 +222,7 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
       redirect_uri: redirectUri,
       code_verifier: codeVerifier,
     };
-    console.log('Token request data:', {
+    testLogger.debug('Token request data:', {
       grant_type: tokenRequestData.grant_type,
       client_id: tokenRequestData.client_id,
       code: tokenRequestData.code?.substring(0, 10) + '...',
@@ -238,7 +238,7 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
     formData.append('redirect_uri', tokenRequestData.redirect_uri);
     formData.append('code_verifier', tokenRequestData.code_verifier);
     
-    console.log('Encoded form data:', formData.toString());
+    testLogger.debug('Encoded form data:', formData.toString());
     
     const tokenResponse = await page.request.post(`${baseUrl}/oauth/token`, {
       headers: {
@@ -247,24 +247,24 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
       data: formData.toString()
     });
 
-    console.log('Token response status:', tokenResponse.status());
-    console.log('Token response headers:', tokenResponse.headers());
+    testLogger.info('Token response status:', tokenResponse.status());
+    testLogger.debug('Token response headers:', tokenResponse.headers());
     
     // レスポンスボディをデバッグ出力
     const responseText = await tokenResponse.text();
-    console.log('Token response body:', responseText);
+    testLogger.debug('Token response body:', responseText);
     
     // ステータスコードの確認とエラーハンドリング
     if (tokenResponse.status() !== 200) {
-      console.error('Token request failed with status:', tokenResponse.status());
+      testLogger.error('Token request failed with status:', tokenResponse.status());
       try {
         const errorData = JSON.parse(responseText);
-        console.error('Error details:', errorData);
-        console.error('Error code:', errorData.error);
-        console.error('Error description:', errorData.error_description);
+        testLogger.error('Error details:', errorData);
+        testLogger.error('Error code:', errorData.error);
+        testLogger.error('Error description:', errorData.error_description);
       } catch (parseError) {
-        console.error('Could not parse error response as JSON:', parseError);
-        console.error('Raw error response:', responseText);
+        testLogger.error('Could not parse error response as JSON:', parseError);
+        testLogger.debug('Raw error response:', responseText);
       }
       throw new Error(`Token request failed with status ${tokenResponse.status()}: ${responseText}`);
     }
@@ -286,7 +286,7 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
     expect(grantedScopes).toContain('mcp:tickets:write');
     expect(grantedScopes).toContain('profile:read');
 
-    console.log('Token obtained successfully:', {
+    testLogger.debug('Token obtained successfully:', {
       token_type: tokenData.token_type,
       expires_in: tokenData.expires_in,
       scope: tokenData.scope,
@@ -311,12 +311,12 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
     expect(mcpResponse.status()).toBe(200);
     
     const mcpText = await mcpResponse.text();
-    console.log('MCP response text:', mcpText);
+    testLogger.debug('MCP response text:', mcpText);
     const mcpData = parseSSEResponse(mcpText);
     expect(mcpData.result).toBeTruthy();
     expect(mcpData.result.tools).toBeTruthy();
     
-    console.log('MCP endpoint access successful:', {
+    testLogger.info('MCP endpoint access successful:', {
       toolCount: mcpData.result.tools.length,
       tools: mcpData.result.tools.map((t: any) => t.name)
     });
