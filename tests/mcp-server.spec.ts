@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
 import crypto from 'crypto';
+import { configureTestLogger } from '../src/utils/logger.js';
+
+// テスト用ロガーを設定
+const testLogger = configureTestLogger();
 
 // Helper function to parse Server-Sent Events response
 function parseSSEResponse(text: string): any {
@@ -107,7 +111,7 @@ test.describe('MCP Server Tests', () => {
     process.env.NODE_ENV = 'test';
     
     // デバッグ情報を出力
-    console.log(`Test env vars: MCP_OAUTH_ENABLED=${process.env.MCP_OAUTH_ENABLED}, NODE_ENV=${process.env.NODE_ENV}`);
+    testLogger.info(`Test env vars: MCP_OAUTH_ENABLED=${process.env.MCP_OAUTH_ENABLED}, NODE_ENV=${process.env.NODE_ENV}`);
   });
 
   test('MCP health endpoint returns 200', async ({ page }) => {
