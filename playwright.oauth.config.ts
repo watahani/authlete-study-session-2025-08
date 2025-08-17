@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 /**
  * OAuth Tests用のPlaywright設定
- * OAuth認証が有効な状態でテストを実行します
+ * OAuth認可が有効な状態でテストを実行します
  */
 export default defineConfig({
   testDir: './tests',
@@ -39,7 +39,7 @@ export default defineConfig({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'MCP_OAUTH_ENABLED=true NODE_ENV=development npm run dev:https',
+    command: 'MCP_OAUTH_ENABLED=true NODE_ENV=development npm run dev',
     url: 'https://localhost:3443',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,

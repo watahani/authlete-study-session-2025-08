@@ -55,16 +55,10 @@ cp .env.example .env
 
 ```bash
 # HTTPS + OAuth + MCP 統合モード（推奨）
-npm run dev:https:mcp
-
-# HTTPS + OAuth のみ
-npm run dev:https
-
-# HTTP開発モード（OAuth無効）
 npm run dev
 
 # デバッグログ有効化
-LOG_LEVEL=debug npm run dev:https:mcp
+LOG_LEVEL=debug npm run dev
 ```
 
 ### 3. アクセス
@@ -112,7 +106,7 @@ LOG_LEVEL=debug npm run dev:https:mcp
 
 ```bash
 # 1. テスト用サーバーを起動（OAuth無効モード）
-MCP_OAUTH_ENABLED=false NODE_ENV=test npm run dev:https
+MCP_OAUTH_ENABLED=false NODE_ENV=test npm run dev
 
 # 2. 別ターミナルで全テストを実行
 npx playwright test --reporter=list
@@ -157,10 +151,10 @@ TEST_LOG_LEVEL=debug npx playwright test
 
 ```bash
 # デバッグログ有効化でサーバー起動
-LOG_LEVEL=debug npm run dev:https
+LOG_LEVEL=debug npm run dev
 
 # 詳細なトレースログまで出力
-LOG_LEVEL=trace npm run dev:https
+LOG_LEVEL=trace npm run dev
 
 # テスト実行時のログレベル制御
 TEST_LOG_LEVEL=debug npx playwright test
@@ -184,7 +178,7 @@ LOG_LEVEL=debug npx playwright test tests/oauth-token-flow.spec.ts
 ### ログ出力例
 
 ```bash
-# OAuth認証フローのデバッグログ例
+# OAuth認可フローのデバッグログ例
 [2025-01-15 10:30:45] [DEBUG] [OAuth] Authorization request received {
   "clientId": "3006291287",
   "responseType": "code",
@@ -296,7 +290,7 @@ HTTPS_PORT=3443                # HTTPSポート（default: 3443）
 SESSION_SECRET=your-secret     # セッション秘密鍵
 
 # MCP設定
-MCP_OAUTH_ENABLED=true         # MCP OAuth認証（default: true、NODE_ENV=testでfalse）
+MCP_OAUTH_ENABLED=true         # MCP OAuth認可（default: true、NODE_ENV=testでfalse）
 
 # ログ設定
 LOG_LEVEL=info                 # サーバーログレベル（error/warn/info/debug/trace）
@@ -425,7 +419,7 @@ sudo update-ca-certificates
 
 #### MCP Introspector を使用したテスト
 
-MCP IntrospectorはOAuthのDynamic Client Registration (DCR) に対応しており、自動的にOAuth認証フローを処理します。
+MCP IntrospectorはOAuthのDynamic Client Registration (DCR) に対応しており、自動的にOAuth認可フローを処理します。
 
 **1. 前提条件：SSL証明書の生成**
 
@@ -453,7 +447,7 @@ HTTPS + OAuth + MCP統合モードでサーバーを起動：
 
 ```bash
 # HTTPS + OAuth + MCP統合サーバー起動
-npm run dev:https
+npm run dev
 ```
 
 **3. MCP Introspector での接続**
@@ -470,7 +464,7 @@ npx @modelcontextprotocol/inspector https://localhost:3443/mcp
 Introspectorが起動すると：
 
 1. **自動DCR**: IntrospectorがDynamic Client Registrationを自動実行
-2. **OAuth認証**: ブラウザでOAuth認証フローが開始される
+2. **OAuth認可**: ブラウザでOAuth認可フローが開始される
 3. **ツール利用**: 認証完了後、MCPツールが利用可能になる
 
 利用可能なツール：
@@ -480,15 +474,15 @@ Introspectorが起動すると：
 - `cancel_reservation` - 予約キャンセル (スコープ: `mcp:tickets:write`)
 - `get_user_reservations` - 予約履歴取得 (スコープ: `mcp:tickets:read`)
 
-**5. 開発・テスト時の認証バイパス**
+**5. 開発・テスト時の認可バイパス**
 
-開発時は認証を無効化して簡単にテスト可能：
+開発時は認可を無効化して簡単にテスト可能：
 
 ```bash
 # OAuth無効モードでサーバー起動
-MCP_OAUTH_ENABLED=false npm run dev:https
+MCP_OAUTH_ENABLED=false npm run dev
 
-# 認証なしでIntrospector接続（証明書指定）
+# 認可なしでIntrospector接続（証明書指定）
 NODE_EXTRA_CA_CERTS="$PWD/ssl/localhost.crt" \
 npx @modelcontextprotocol/inspector https://localhost:3443/mcp
 ```
@@ -509,14 +503,14 @@ npx playwright test tests/dcr.spec.ts
 ### 動的OAuth制御
 
 ```bash
-# テスト時: OAuth認証無効
-MCP_OAUTH_ENABLED=false NODE_ENV=test npm run dev:https
+# テスト時: OAuth認可無効
+MCP_OAUTH_ENABLED=false NODE_ENV=test npm run dev
 
-# 本番時: OAuth認証有効
-MCP_OAUTH_ENABLED=true npm run dev:https
+# 本番時: OAuth認可有効
+MCP_OAUTH_ENABLED=true npm run dev
 
 # デフォルト: NODE_ENV=test なら無効、それ以外は有効
-npm run dev:https
+npm run dev
 ```
 
 ## 📊 実装完了状況

@@ -156,7 +156,7 @@ test.describe('OAuth Authentication Middleware', () => {
   });
 
   test('Health check endpoint does not require OAuth', async ({ page }) => {
-    // ヘルスチェックエンドポイントはOAuth認証不要
+    // ヘルスチェックエンドポイントはOAuth認可不要
     const response = await page.request.get(`${baseUrl}/mcp/health`);
     
     // ヘルスチェックは認証不要で200を返すべき
