@@ -29,8 +29,8 @@ jobs:
     - name: Install Playwright browsers
       run: npx playwright install --with-deps
 
-    - name: Run DCR tests (OAuth enabled)
-      run: npx playwright test tests/dcr.spec.ts --reporter=list --config=playwright-dcr.config.ts
+    - name: Run OAuth tests (DCR and other OAuth features, OAuth enabled)
+      run: npx playwright test --reporter=list --config=playwright-oauth.config.ts
       env:
         AUTHLETE_SERVICE_ACCESS_TOKEN: ${{ secrets.AUTHLETE_SERVICE_ACCESS_TOKEN }}
         AUTHLETE_SERVICE_ID: ${{ secrets.AUTHLETE_SERVICE_ID }}
@@ -38,7 +38,16 @@ jobs:
         ORGANIZATION_ACCESS_TOKEN: ${{ secrets.ORGANIZATION_ACCESS_TOKEN }}
         CI: true
 
-    - name: Run other tests (excluding DCR)
+    - name: Run MCP tests (OAuth disabled)
+      run: npx playwright test --reporter=list --config=playwright-mcp.config.ts
+      env:
+        AUTHLETE_SERVICE_ACCESS_TOKEN: ${{ secrets.AUTHLETE_SERVICE_ACCESS_TOKEN }}
+        AUTHLETE_SERVICE_ID: ${{ secrets.AUTHLETE_SERVICE_ID }}
+        AUTHLETE_BASE_URL: ${{ secrets.AUTHLETE_BASE_URL }}
+        ORGANIZATION_ACCESS_TOKEN: ${{ secrets.ORGANIZATION_ACCESS_TOKEN }}
+        CI: true
+
+    - name: Run main app tests (OAuth disabled, excluding OAuth/MCP)
       run: npx playwright test --reporter=list
       env:
         AUTHLETE_SERVICE_ACCESS_TOKEN: ${{ secrets.AUTHLETE_SERVICE_ACCESS_TOKEN }}
