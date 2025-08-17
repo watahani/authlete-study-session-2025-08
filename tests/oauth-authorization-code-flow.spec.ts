@@ -14,10 +14,18 @@ test.describe('OAuth Authorization Code Flow', () => {
     
     await page.fill('input[name="username"]', 'testuser');
     await page.fill('input[name="password"]', 'testpass');
+    
+    // ネットワークレスポンスを監視してログイン成功を確認
+    const loginResponsePromise = page.waitForResponse(response => 
+      response.url().includes('/auth/login') && response.status() === 200
+    );
+    
     await page.click('button[type="submit"]');
     
-    // ログイン成功を確認
-    await expect(page).toHaveURL(/.*\/$/);
+    // ログイン成功レスポンスを確認
+    const loginResponse = await loginResponsePromise;
+    const loginData = await loginResponse.json();
+    expect(loginData.message).toBe('Login successful');
 
     // 2. OAuth認可エンドポイントにアクセス
     const authUrl = new URL('https://localhost:3443/oauth/authorize');
@@ -33,15 +41,18 @@ test.describe('OAuth Authorization Code Flow', () => {
 
     await page.goto(authUrl.toString());
 
-    // 3. 同意画面が表示されることを確認
+    // 3. 同意画面にリダイレクトされることを確認
+    await page.waitForURL(/.*\/oauth\/authorize\/consent.*/);
+    
+    // 4. 同意画面が表示されることを確認
     await expect(page.locator('h1')).toContainText('アプリケーション認可');
     await expect(page.locator('.client-info')).toBeVisible();
     await expect(page.locator('.scopes')).toBeVisible();
 
-    // 4. 認可を許可
+    // 5. 認可を許可
     await page.click('button.approve');
 
-    // 5. リダイレクトまたはエラーページに遷移することを確認
+    // 6. リダイレクトまたはエラーページに遷移することを確認
     // 実際のテストでは、適切なクライアントが登録されている必要があります
     await page.waitForURL(/.*callback.*/);
   });
@@ -51,7 +62,18 @@ test.describe('OAuth Authorization Code Flow', () => {
     await page.goto('https://localhost:3443/auth/login');
     await page.fill('input[name="username"]', 'testuser');
     await page.fill('input[name="password"]', 'testpass');
+    
+    // ネットワークレスポンスを監視してログイン成功を確認
+    const loginResponsePromise = page.waitForResponse(response => 
+      response.url().includes('/auth/login') && response.status() === 200
+    );
+    
     await page.click('button[type="submit"]');
+    
+    // ログイン成功レスポンスを確認
+    const loginResponse = await loginResponsePromise;
+    const loginData = await loginResponse.json();
+    expect(loginData.message).toBe('Login successful');
 
     // OAuth認可エンドポイント
     const authUrl = new URL('https://localhost:3443/oauth/authorize');
@@ -67,6 +89,9 @@ test.describe('OAuth Authorization Code Flow', () => {
 
     await page.goto(authUrl.toString());
 
+    // 同意画面にリダイレクトされることを確認
+    await page.waitForURL(/.*\/oauth\/authorize\/consent.*/);
+    
     // 同意画面で拒否
     await page.click('button.deny');
 

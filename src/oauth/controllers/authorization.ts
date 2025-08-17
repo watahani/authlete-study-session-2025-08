@@ -108,10 +108,12 @@ export class AuthorizationController {
 
     // デバッグ: Authleteレスポンスの内容をログ出力
     oauthLogger.debug('Authlete response debug', {
+      action: response.action,
       ticket: !!response.ticket,
       client: !!response.client,
       scopes: response.scopes,
       scopesType: typeof response.scopes,
+      scopesIsArray: Array.isArray(response.scopes),
       scopesLength: response.scopes?.length,
       scopesDetail: response.scopes
     });
@@ -126,7 +128,7 @@ export class AuthorizationController {
     // セッションにOAuth情報を保存
     req.session.oauthTicket = response.ticket;
     req.session.oauthClient = response.client;
-    req.session.oauthScopes = response.scopes;
+    req.session.oauthScopes = Array.isArray(response.scopes) ? response.scopes : [];
 
     // 保存直後の確認
     oauthLogger.debug('After assignment - Session OAuth data', {
