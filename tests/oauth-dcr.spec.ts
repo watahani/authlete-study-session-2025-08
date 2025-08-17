@@ -1,4 +1,8 @@
 import { test, expect } from '@playwright/test';
+import { configureTestLogger } from '../src/utils/logger.js';
+
+// テスト用ロガーを設定
+const testLogger = configureTestLogger();
 
 /**
  * Dynamic Client Registration (DCR) のテスト
@@ -52,12 +56,11 @@ test.describe('Dynamic Client Registration (DCR)', () => {
     
     const registrationAccessToken = registrationData.registration_access_token;
     const clientId = registrationData.client_id;
-    const clientSecret = registrationData.client_secret;
     
-    console.log('Step 1 - DCR Registration successful:', {
+    testLogger.info('Step 1 - DCR Registration successful:', {
       client_id: clientId,
       client_name: registrationData.client_name,
-      registration_access_token: registrationAccessToken ? 'present' : 'missing'
+      hasRegistrationToken: !!registrationAccessToken
     });
 
     // Step 2: Retrieve client information via DCR
@@ -77,13 +80,13 @@ test.describe('Dynamic Client Registration (DCR)', () => {
     expect(getData.client_name).toBe('DCR Test Client');
     expect(getData.redirect_uris).toEqual(['https://example.com/callback']);
     
-    console.log('Step 2 - DCR Get successful:', {
+    testLogger.info('Step 2 - DCR Get successful:', {
       client_id: getData.client_id,
       client_name: getData.client_name
     });
 
     // Step 3: Update client information via DCR (現在スキップ - Authleteのバグにより一時的に無効)
-    console.log('Step 3 - DCR Update: スキップ (Authlete側のバグにより現在利用不可)');
+    testLogger.info('Step 3 - DCR Update: スキップ (Authlete側のバグにより現在利用不可)');
     
     // TODO: Authleteの更新機能バグ修正後に有効化
     // const updatedMetadata = {
@@ -143,7 +146,7 @@ test.describe('Dynamic Client Registration (DCR)', () => {
 
     expect(deleteResponse.status()).toBe(204);
     
-    console.log('Step 4 - DCR Delete successful:', {
+    testLogger.info('Step 4 - DCR Delete successful:', {
       client_id: clientId
     });
 
@@ -158,7 +161,7 @@ test.describe('Dynamic Client Registration (DCR)', () => {
     // 削除されたクライアントへのアクセスは失敗すべき
     expect([400, 401, 404]).toContain(accessDeletedResponse.status());
     
-    console.log('Step 5 - Access to deleted client correctly failed');
+    testLogger.info('Step 5 - Access to deleted client correctly failed');
   });
 });
 
