@@ -238,9 +238,9 @@ export class DCRController {
 
       oauthLogger.debug('DCR update request payload', {
         clientId,
-        token: registrationAccessToken ? 'present' : 'missing',
-        originalMetadata: clientMetadata,
-        enhancedMetadata: JSON.stringify(enhancedClientMetadata)
+        hasToken: !!registrationAccessToken,
+        hasOriginalMetadata: !!clientMetadata,
+        enhancedMetadataSize: JSON.stringify(enhancedClientMetadata).length
       });
 
       // Authlete DCR Update API を呼び出し
