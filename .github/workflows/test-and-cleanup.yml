@@ -39,7 +39,7 @@ jobs:
         CI: true
 
     - name: Run other tests (excluding DCR)
-      run: npx playwright test --ignore="**/dcr.spec.ts" --reporter=list
+      run: npx playwright test --reporter=list
       env:
         AUTHLETE_SERVICE_ACCESS_TOKEN: ${{ secrets.AUTHLETE_SERVICE_ACCESS_TOKEN }}
         AUTHLETE_SERVICE_ID: ${{ secrets.AUTHLETE_SERVICE_ID }}

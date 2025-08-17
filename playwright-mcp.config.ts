@@ -1,4 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
+import * as dotenv from 'dotenv';
+
+// 環境変数を明示的に読み込み
+dotenv.config();
 
 /**
  * MCPテスト用のPlaywright設定

@@ -1,19 +1,23 @@
 import { defineConfig, devices } from '@playwright/test';
+import * as dotenv from 'dotenv';
+
+// 環境変数を明示的に読み込み
+dotenv.config();
 
 /**
- * DCRテスト用のPlaywright設定
- * OAuth有効モードでサーバーを起動してDCRテストを実行
+ * OAuthテスト用のPlaywright設定
+ * OAuth有効モードでサーバーを起動してOAuth関連テスト（DCR、認証フロー等）を実行
  */
 export default defineConfig({
   testDir: './tests',
   /* Run tests in files in parallel */
-  fullyParallel: false, // DCRテストはシリアル実行
+  fullyParallel: false, // OAuthテストはシリアル実行
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
   /* Opt out of parallel tests on CI. */
-  workers: 1, // DCRテストは単一ワーカーで実行
+  workers: 1, // OAuthテストは単一ワーカーで実行
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
@@ -33,6 +37,7 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      testMatch: ['**/oauth-*.spec.ts'], // OAuth関連テスト（DCR、認証フロー等）のみを実行
     },
   ],
 
@@ -45,11 +50,13 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     env: {
       HTTPS_ENABLED: 'true',
+      MCP_OAUTH_ENABLED: 'true', // OAuth機能を明示的に有効化
       NODE_ENV: 'test',
       LOG_LEVEL: 'debug',
       AUTHLETE_SERVICE_ACCESS_TOKEN: process.env.AUTHLETE_SERVICE_ACCESS_TOKEN || '',
       AUTHLETE_SERVICE_ID: process.env.AUTHLETE_SERVICE_ID || '',
       AUTHLETE_BASE_URL: process.env.AUTHLETE_BASE_URL || '',
+      ORGANIZATION_ACCESS_TOKEN: process.env.ORGANIZATION_ACCESS_TOKEN || '',
     }
   },
 });

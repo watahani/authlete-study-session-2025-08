@@ -1,12 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
+import * as dotenv from 'dotenv';
 
 /**
  * Read environment variables from file.
  * https://github.com/motdotla/dotenv
  */
-// import dotenv from 'dotenv';
-// import path from 'path';
-// dotenv.config({ path: path.resolve(__dirname, '.env') });
+dotenv.config();
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -96,9 +95,13 @@ export default defineConfig({
     timeout: 120 * 1000,
     ignoreHTTPSErrors: true,
     env: {
+      HTTPS_ENABLED: 'true',
       MCP_OAUTH_ENABLED: 'false',
       NODE_ENV: 'test',
-      LOG_LEVEL: 'debug'
+      LOG_LEVEL: 'debug',
+      AUTHLETE_SERVICE_ACCESS_TOKEN: process.env.AUTHLETE_SERVICE_ACCESS_TOKEN || '',
+      AUTHLETE_SERVICE_ID: process.env.AUTHLETE_SERVICE_ID || '',
+      AUTHLETE_BASE_URL: process.env.AUTHLETE_BASE_URL || '',
     }
   },
 });
