@@ -26,7 +26,7 @@ function generateCodeChallenge(codeVerifier: string): string {
   return crypto.createHash('sha256').update(codeVerifier).digest('base64url');
 }
 
-// OAuth認証付きアクセストークンを取得するヘルパー関数
+// OAuth認可付きアクセストークンを取得するヘルパー関数
 async function getAccessToken(page: any): Promise<string> {
   const baseURL = getBaseURL(page);
   const clientId = '3006291287';
@@ -106,7 +106,7 @@ async function getAccessToken(page: any): Promise<string> {
 
 test.describe('MCP Server Tests', () => {
   test.beforeEach(async () => {
-    // MCPは常に有効、テスト時はOAuth認証を無効化
+    // MCPは常に有効、テスト時はOAuth認可を無効化
     process.env.MCP_OAUTH_ENABLED = 'false';
     process.env.NODE_ENV = 'test';
     

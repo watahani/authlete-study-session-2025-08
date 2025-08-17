@@ -50,8 +50,8 @@ npx playwright test --ui
 # テスト結果のレポート表示
 npx playwright show-report
 
-# HTTPS モードでの開発サーバー起動
-npm run dev:https
+# 開発サーバー起動（HTTPS + MCP統合）
+npm run dev
 ```
 
 ## デバッグ方法
@@ -92,10 +92,10 @@ test('テスト名', async ({ page }) => {
 
 ```bash
 # デバッグログを有効化してサーバー起動
-LOG_LEVEL=debug npm run dev:https
+LOG_LEVEL=debug npm run dev
 
 # 詳細なトレースログまで出力
-LOG_LEVEL=trace npm run dev:https
+LOG_LEVEL=trace npm run dev
 
 # テスト実行時のログレベル制御
 TEST_LOG_LEVEL=debug npx playwright test
@@ -116,7 +116,7 @@ TEST_LOG_LEVEL=debug npx playwright test
 #### バックグラウンドサーバーログの確認
 
 ```bash
-# バックグラウンドで実行中の npm run dev:https のログを確認
+# バックグラウンドで実行中の npm run dev のログを確認
 # BashOutput ツールを使用してリアルタイムログを取得
 ```
 

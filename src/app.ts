@@ -42,7 +42,7 @@ const HTTP_PORT = process.env.HTTP_PORT || 3000;
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
 const PORT = HTTPS_ENABLED ? HTTPS_PORT : HTTP_PORT;
 
-// MCP OAuth認証の有効/無効を判定（明示的にfalseの場合のみ無効）
+// MCP OAuth認可の有効/無効を判定（明示的にfalseの場合のみ無効）
 const MCP_OAUTH_ENABLED = process.env.MCP_OAUTH_ENABLED !== 'false';
 
 const app = express();
@@ -263,10 +263,10 @@ const initializeMCPServer = async (): Promise<void> => {
   // サーバーとトランスポートを接続
   await mcpServer.connect(mcpTransport);
 
-  // OAuth認証ミドルウェアをインポート
+  // OAuth認可ミドルウェアをインポート
   const { oauthAuthentication } = await import('./oauth/middleware/oauth-middleware.js');
 
-  // MCP OAuth認証ミドルウェアの条件付き適用
+  // MCP OAuth認可ミドルウェアの条件付き適用
   const getMcpMiddleware = () => {
     mcpLogger.debug('MCP OAuth decision', {
       enabled: MCP_OAUTH_ENABLED,
