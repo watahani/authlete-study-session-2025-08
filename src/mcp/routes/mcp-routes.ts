@@ -37,14 +37,18 @@ export function createMCPRoutes(options: MCPRoutesOptions): Router {
     },
     async (req: Request, res: Response) => {
       try {
+        // OAuth情報の取得（有効時のみ）
+        const oauthInfo = oauthEnabled ? (req as AuthenticatedRequest).oauth : undefined;
+        
         mcpLogger.debug('MCP route handler called', {
-          hasOAuth: !!(req as AuthenticatedRequest).oauth,
-          subject: (req as AuthenticatedRequest).oauth?.subject,
-          scopes: (req as AuthenticatedRequest).oauth?.scopes
+          oauthEnabled,
+          hasOAuth: !!oauthInfo,
+          subject: oauthInfo?.subject,
+          scopes: oauthInfo?.scopes
         });
 
         // OAuth 情報を MCPServerManager に設定
-        mcpServerManager.setOAuthInfo((req as AuthenticatedRequest).oauth);
+        mcpServerManager.setOAuthInfo(oauthInfo);
 
         const transport = mcpServerManager.getTransport();
         if (!transport) {
