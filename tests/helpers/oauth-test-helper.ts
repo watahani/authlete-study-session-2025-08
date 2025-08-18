@@ -13,9 +13,12 @@ export interface AuthorizationDetailsOptions {
 export class OAuthTestHelper {
   private createdClients: string[] = [];
   
+  // MCP Test Client (authorization details対応済み, Public Client)
+  private readonly MCP_CLIENT_ID = '3006291287';
+  
   async setupTest(page: Page) {
     // ベース URL を設定
-    const baseUrl = process.env.BASE_URL || 'https://localhost:3000';
+    const baseUrl = process.env.BASE_URL || 'https://localhost:3443';
     
     // ブラウザのコンソールエラーとリクエストエラーを追跡
     page.on('console', msg => {
@@ -28,10 +31,10 @@ export class OAuthTestHelper {
       console.log(`[REQUEST FAILED] ${request.method()} ${request.url()} - ${request.failure()?.errorText}`);
     });
 
-    // 認証用のユーザーでログイン
+    // 認証用のユーザーでログイン (既存のテストユーザーを使用)
     await page.goto(`${baseUrl}/auth/login`);
-    await page.fill('input[name="username"]', 'test_user');
-    await page.fill('input[name="password"]', 'password');
+    await page.fill('input[name="username"]', 'john_doe');
+    await page.fill('input[name="password"]', 'password123');
     await page.click('button[type="submit"]');
     
     // ログイン確認
@@ -39,18 +42,20 @@ export class OAuthTestHelper {
   }
 
   async performOAuthFlow(page: Page, options: AuthorizationDetailsOptions) {
-    const baseUrl = process.env.BASE_URL || 'https://localhost:3000';
+    const baseUrl = process.env.BASE_URL || 'https://localhost:3443';
     
-    // DCR でクライアントを作成
-    const clientInfo = await this.createTestClient();
+    // MCP Test Clientを使用（authorization details対応済み, Public Client）
+    const clientInfo = {
+      client_id: this.MCP_CLIENT_ID
+    };
     
     // 認可エンドポイントに移動
     const authUrl = new URL(`${baseUrl}/oauth/authorize`);
     authUrl.searchParams.append('response_type', 'code');
     authUrl.searchParams.append('client_id', clientInfo.client_id);
-    authUrl.searchParams.append('redirect_uri', 'https://localhost:3000/oauth/callback');
-    authUrl.searchParams.append('scope', 'ticket:read ticket:write');
-    authUrl.searchParams.append('resource', 'https://localhost:3000/mcp');
+    authUrl.searchParams.append('redirect_uri', `${baseUrl}/oauth/callback`);
+    authUrl.searchParams.append('scope', 'mcp');
+    authUrl.searchParams.append('resource', `${baseUrl}/mcp`);
     
     await page.goto(authUrl.toString());
     
@@ -79,22 +84,23 @@ export class OAuthTestHelper {
       throw new Error('認可コードが取得できませんでした');
     }
     
-    // アクセストークンを取得
+    // アクセストークンを取得（Public Clientなのでclient_secretなし）
     const tokenResponse = await fetch(`${baseUrl}/oauth/token`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${Buffer.from(`${clientInfo.client_id}:${clientInfo.client_secret}`).toString('base64')}`
+        'Content-Type': 'application/x-www-form-urlencoded'
       },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code: code,
-        redirect_uri: 'https://localhost:3000/oauth/callback'
+        redirect_uri: `${baseUrl}/oauth/callback`,
+        client_id: clientInfo.client_id
       }).toString()
     });
     
     if (!tokenResponse.ok) {
-      throw new Error(`トークン取得エラー: ${tokenResponse.status}`);
+      const errorText = await tokenResponse.text();
+      throw new Error(`トークン取得エラー: ${tokenResponse.status} - ${errorText}`);
     }
     
     const tokenData = await tokenResponse.json();
@@ -110,37 +116,9 @@ export class OAuthTestHelper {
     };
   }
 
-  async createTestClient() {
-    const baseUrl = process.env.BASE_URL || 'https://localhost:3000';
-    
-    // テスト用のアクセストークンでDCRクライアントを作成
-    const dcrResponse = await fetch(`${baseUrl}/oauth/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.DCR_ACCESS_TOKEN || 'test-dcr-token'}`
-      },
-      body: JSON.stringify({
-        client_name: `Test Client ${Date.now()}`,
-        grant_types: ['authorization_code'],
-        response_types: ['code'],
-        redirect_uris: ['https://localhost:3000/oauth/callback'],
-        scope: 'ticket:read ticket:write'
-      })
-    });
-    
-    if (!dcrResponse.ok) {
-      throw new Error(`DCRクライアント作成エラー: ${dcrResponse.status}`);
-    }
-    
-    const clientData = await dcrResponse.json();
-    this.createdClients.push(clientData.client_id);
-    
-    return clientData;
-  }
 
   async callMCPEndpoint(accessToken: string, tool: string, args: any) {
-    const baseUrl = process.env.BASE_URL || 'https://localhost:3000';
+    const baseUrl = process.env.BASE_URL || 'https://localhost:3443';
     
     const mcpRequest = {
       jsonrpc: '2.0',
@@ -163,22 +141,25 @@ export class OAuthTestHelper {
   }
 
   async cleanup() {
-    const baseUrl = process.env.BASE_URL || 'https://localhost:3000';
-    
-    // 作成したクライアントを削除
-    for (const clientId of this.createdClients) {
-      try {
-        await fetch(`${baseUrl}/oauth/register/${clientId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${process.env.DCR_ACCESS_TOKEN || 'test-dcr-token'}`
-          }
-        });
-      } catch (error) {
-        oauthLogger.error('Failed to cleanup client', { clientId, error });
+    // MCP Test Clientを使用するのでクリーンアップは不要
+    // DCRで作成したクライアントがある場合のみクリーンアップ
+    if (this.createdClients.length > 0) {
+      const baseUrl = process.env.BASE_URL || 'https://localhost:3443';
+      
+      for (const clientId of this.createdClients) {
+        try {
+          await fetch(`${baseUrl}/oauth/register/${clientId}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${process.env.DCR_ACCESS_TOKEN || 'test-dcr-token'}`
+            }
+          });
+        } catch (error) {
+          oauthLogger.error('Failed to cleanup client', { clientId, error });
+        }
       }
+      
+      this.createdClients = [];
     }
-    
-    this.createdClients = [];
   }
 }
