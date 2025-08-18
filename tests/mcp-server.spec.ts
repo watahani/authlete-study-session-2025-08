@@ -278,7 +278,7 @@ test.describe('MCP Server Tests', () => {
       const result = parseSSEResponse(text);
       expect(result).toHaveProperty('result');
       expect(result.result.isError).toBe(true);
-      expect(result.result.content[0].text).toContain('ユーザー認証が必要');
+      expect(result.result.content[0].text).toContain('Unauthorized');
     } else {
       // OAuth無効な場合は認証なしでアクセスして動作確認
       const response = await page.request.post(`${baseURL}/mcp`, {
@@ -295,7 +295,7 @@ test.describe('MCP Server Tests', () => {
       const result = parseSSEResponse(text);
       expect(result).toHaveProperty('result');
       expect(result.result.isError).toBe(true);
-      expect(result.result.content[0].text).toContain('ユーザー認証が必要');
+      expect(result.result.content[0].text).toContain('Unauthorized');
     }
   });
 
@@ -325,7 +325,7 @@ test.describe('MCP Server Tests', () => {
     const result = parseSSEResponse(text);
     expect(result).toHaveProperty('result');
     expect(result.result.isError).toBe(true);
-    expect(result.result.content[0].text).toContain('ユーザー認証が必要');
+    expect(result.result.content[0].text).toContain('Unauthorized');
   });
 
   test('invalid tool name returns error', async ({ page }) => {

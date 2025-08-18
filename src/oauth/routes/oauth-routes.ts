@@ -218,9 +218,25 @@ router.post('/authorize/decision', async (req, res) => {
     const ticket = oauthTicket;
 
     if (authorized === 'true') {
-      const issueResponse = await (getAuthleteClient() as any).makeRequest('/auth/authorization/issue', {
+      const issueParams = {
         ticket,
-        subject: user.username
+        subject: user.id.toString() // ユーザーIDを文字列として設定
+      };
+      
+      // デバッグログ: issue エンドポイントに送信するパラメーター
+      oauthLogger.debug('Authlete authorization/issue request params', {
+        ticket: ticket.substring(0, 20) + '...',
+        subject: issueParams.subject,
+        username: user.username
+      });
+      
+      const issueResponse = await (getAuthleteClient() as any).makeRequest('/auth/authorization/issue', issueParams);
+      
+      // デバッグログ: issue エンドポイントのレスポンス
+      oauthLogger.debug('Authlete authorization/issue response', {
+        action: issueResponse.action,
+        resultCode: issueResponse.resultCode,
+        resultMessage: issueResponse.resultMessage
       });
 
       if (issueResponse.action === 'LOCATION') {

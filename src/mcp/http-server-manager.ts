@@ -125,7 +125,7 @@ export class MCPServerManager {
         content: [
           {
             type: "text",
-            text: "チケット予約には 'mcp:tickets:write' スコープが必要です。"
+            text: "Unauthorized"
           }
         ],
         isError: true
@@ -142,7 +142,7 @@ export class MCPServerManager {
         content: [
           {
             type: "text",
-            text: "予約キャンセルには 'mcp:tickets:write' スコープが必要です。"
+            text: "Unauthorized"
           }
         ],
         isError: true

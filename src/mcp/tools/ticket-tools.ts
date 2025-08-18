@@ -123,7 +123,7 @@ export class TicketTools {
           content: [
             {
               type: "text",
-              text: "チケット予約にはアクセストークンによる認証が必要です。"
+              text: "Unauthorized"
             }
           ],
           isError: true
@@ -163,7 +163,7 @@ export class TicketTools {
           content: [
             {
               type: "text",
-              text: "無効なユーザー ID です。"
+              text: "Unauthorized"
             }
           ],
           isError: true
@@ -214,7 +214,7 @@ export class TicketTools {
           content: [
             {
               type: "text",
-              text: "予約キャンセルにはアクセストークンによる認証が必要です。"
+              text: "Unauthorized"
             }
           ],
           isError: true
@@ -239,7 +239,7 @@ export class TicketTools {
           content: [
             {
               type: "text",
-              text: "無効なユーザー ID です。"
+              text: "Unauthorized"
             }
           ],
           isError: true
@@ -280,7 +280,7 @@ export class TicketTools {
           content: [
             {
               type: "text",
-              text: "予約履歴の取得にはアクセストークンによる認証が必要です。"
+              text: "Unauthorized"
             }
           ],
           isError: true
@@ -293,7 +293,7 @@ export class TicketTools {
           content: [
             {
               type: "text",
-              text: "無効なユーザー ID です。"
+              text: "Unauthorized"
             }
           ],
           isError: true
