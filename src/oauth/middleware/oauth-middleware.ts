@@ -116,6 +116,27 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
           });
 
         case 'OK':
+          // アクセストークンのリソース検証
+          const mcpServerUrl = `${baseUrl}/mcp`;
+          if (introspectionResponse.accessTokenResources && 
+              !introspectionResponse.accessTokenResources.includes(mcpServerUrl)) {
+            oauthLogger.warn('Access token does not include MCP server resource', {
+              requiredResource: mcpServerUrl,
+              accessTokenResources: introspectionResponse.accessTokenResources
+            });
+            
+            const wwwAuthResource = `Bearer realm="${baseUrl}", ` +
+                                  `error="invalid_token", ` +
+                                  `error_description="Access token does not include required resource", ` +
+                                  `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`;
+            
+            res.set('WWW-Authenticate', wwwAuthResource);
+            return res.status(401).json({
+              error: 'invalid_token',
+              error_description: 'Access token does not include required resource'
+            });
+          }
+          
           // トークンが有効 - リクエストにOAuth情報を追加
           req.oauth = {
             token: token,
