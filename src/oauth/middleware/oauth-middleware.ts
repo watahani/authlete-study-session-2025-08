@@ -7,7 +7,6 @@ import { oauthLogger } from '../../utils/logger.js';
 interface OAuthValidationOptions {
   requiredScopes?: string[];
   requireSSL?: boolean;
-  resourcePath?: string; // 保護するリソースのパス（例: '/mcp', '/oauth/register'）
   // OAuth 2.1ではheaderのみ許可
 }
 
@@ -29,8 +28,7 @@ interface AuthenticatedRequest extends Request {
 export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
   const {
     requiredScopes = [],
-    requireSSL = true,
-    resourcePath = '/mcp'
+    requireSSL = true
   } = options;
 
   return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -52,7 +50,7 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
         const wwwAuth = `Bearer realm="${baseUrl}", ` +
                        `error="invalid_request", ` +
                        `error_description="Access token is required", ` +
-                       `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource${resourcePath}"`;
+                       `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource/mcp"`;
         
         res.set('WWW-Authenticate', wwwAuth);
         return res.status(401).json({
@@ -96,7 +94,7 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
           const wwwAuthInvalid = `Bearer realm="${baseUrl}", ` +
                                `error="invalid_token", ` +
                                `error_description="The access token provided is expired, revoked, malformed, or invalid", ` +
-                               `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource${resourcePath}"`;
+                               `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`;
           
           res.set('WWW-Authenticate', wwwAuthInvalid);
           return res.status(401).json({
@@ -109,7 +107,7 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
                              `error="insufficient_scope", ` +
                              `error_description="The request requires higher privileges than provided", ` +
                              `scope="${requiredScopes.join(' ')}", ` +
-                             `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource${resourcePath}"`;
+                             `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`;
           
           res.set('WWW-Authenticate', wwwAuthScope);
           return res.status(403).json({
@@ -119,18 +117,18 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
 
         case 'OK':
           // アクセストークンのリソース検証
-          const resourceUrl = `${baseUrl}${resourcePath}`;
+          const mcpServerUrl = `${baseUrl}/mcp`;
           if (!introspectionResponse.accessTokenResources || 
-              !introspectionResponse.accessTokenResources.includes(resourceUrl)) {
-            oauthLogger.warn('Access token does not include required resource', {
-              requiredResource: resourceUrl,
+              !introspectionResponse.accessTokenResources.includes(mcpServerUrl)) {
+            oauthLogger.warn('Access token does not include MCP server resource', {
+              requiredResource: mcpServerUrl,
               accessTokenResources: introspectionResponse.accessTokenResources || []
             });
             
             const wwwAuthResource = `Bearer realm="${baseUrl}", ` +
                                   `error="invalid_token", ` +
                                   `error_description="Access token does not include required resource", ` +
-                                  `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource${resourcePath}"`;
+                                  `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`;
             
             res.set('WWW-Authenticate', wwwAuthResource);
             return res.status(401).json({
@@ -213,18 +211,6 @@ export const requireScopes = (requiredScopes: string[]) => {
 
     next();
   };
-};
-
-/**
- * DCR (Dynamic Client Registration) エンドポイント用のOAuth認証ミドルウェア
- * dcrスコープを要求する
- */
-export const dcrOAuthAuthentication = () => {
-  return oauthAuthentication({
-    requiredScopes: ['dcr'],
-    requireSSL: true,
-    resourcePath: '/oauth/register'
-  });
 };
 
 export type { AuthenticatedRequest };
