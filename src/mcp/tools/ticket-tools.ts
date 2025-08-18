@@ -6,6 +6,8 @@ import { TicketRepository, TicketSearchOptions, ReservationOptions } from '../da
 import { ToolResult, TicketToolArguments } from '../types/mcp-types.js';
 import { Ticket, ReservationWithDetails } from '../../types/index.js';
 import { AuthenticatedRequest } from '../../oauth/middleware/oauth-middleware.js';
+import { parseAndValidateAuthorizationDetails, validateTicketBooking } from '../utils/authorization-details.js';
+import { mcpLogger } from '../../utils/logger.js';
 
 export class TicketTools {
   private static ticketRepository = new TicketRepository();
@@ -150,6 +152,51 @@ export class TicketTools {
             {
               type: "text",
               text: `チケット ID ${args.ticket_id} は存在しません。`
+            }
+          ],
+          isError: true
+        };
+      }
+
+      // Authorization Detailsによる制限チェック
+      const authDetailsResult = parseAndValidateAuthorizationDetails(oauthInfo.authorizationDetails);
+      if (!authDetailsResult.allowed) {
+        mcpLogger.warn('Authorization details validation failed', {
+          reason: authDetailsResult.reason,
+          subject: oauthInfo.subject
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: `認可エラー: ${authDetailsResult.reason || '不正なauthorization details'}`
+            }
+          ],
+          isError: true
+        };
+      }
+
+      // チケット予約制限の検証（金額のみ）
+      const bookingValidation = validateTicketBooking(
+        authDetailsResult.restrictions,
+        ticket.price,
+        args.seats
+      );
+
+      if (!bookingValidation.allowed) {
+        mcpLogger.warn('Ticket booking validation failed', {
+          reason: bookingValidation.reason,
+          ticketId: args.ticket_id,
+          seats: args.seats,
+          price: ticket.price,
+          subject: oauthInfo.subject,
+          restrictions: authDetailsResult.restrictions
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: `予約制限エラー: ${bookingValidation.reason}`
             }
           ],
           isError: true

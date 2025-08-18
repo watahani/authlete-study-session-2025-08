@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { AuthleteClient, createAuthleteClient } from '../authlete/client.js';
+import { createAuthleteClient } from '../authlete/client.js';
 import { getAuthleteConfig } from '../config/authlete-config.js';
-import { IntrospectionRequest } from '../authlete/types/index.js';
+import { IntrospectionRequest, AuthorizationDetail } from '../authlete/types/index.js';
 import { oauthLogger } from '../../utils/logger.js';
 
 interface OAuthValidationOptions {
@@ -18,6 +18,7 @@ interface AuthenticatedRequest extends Request {
     scopes: string[];
     username?: string;
     exp?: number;
+    authorizationDetails?: { elements: AuthorizationDetail[] }; // オブジェクト形式
   };
 }
 
@@ -144,8 +145,17 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
             clientId: introspectionResponse.clientId?.toString() || '',
             scopes: introspectionResponse.scopes || [],
             username: introspectionResponse.subject, // subject をユーザー識別子として使用
-            exp: introspectionResponse.expiresAt
+            exp: introspectionResponse.expiresAt,
+            authorizationDetails: introspectionResponse.authorizationDetails // 既にオブジェクト形式
           };
+
+          // デバッグログ: authorization detailsがある場合はログ出力
+          if (introspectionResponse.authorizationDetails) {
+            oauthLogger.debug('Authorization details found in token', {
+              authorizationDetails: introspectionResponse.authorizationDetails,
+              subject: introspectionResponse.subject
+            });
+          }
           
           next();
           break;
