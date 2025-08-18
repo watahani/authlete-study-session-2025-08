@@ -37,7 +37,7 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      testMatch: '**/mcp-*.spec.ts', // MCPテストのみを実行
+      testMatch: ['**/mcp-*.spec.ts'], // MCPテストのみを実行
     },
   ],
 

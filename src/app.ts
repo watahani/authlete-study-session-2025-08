@@ -8,28 +8,13 @@ import helmet from 'helmet';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { 
-  CallToolRequestSchema, 
-  ListToolsRequestSchema 
-} from '@modelcontextprotocol/sdk/types.js';
 
 import { MockDatabaseConfig as DatabaseConfig } from './config/mock-database.js';
 import { AuthService } from './services/AuthService.js';
 import { authRoutes } from './routes/auth.js';
 import { ticketRoutes } from './routes/tickets.js';
 import { oauthRoutes } from './oauth/routes/oauth-routes.js';
-import { TicketTools } from './mcp/tools/ticket-tools.js';
-import { 
-  listTicketsToolSchema,
-  searchTicketsToolSchema,
-  reserveTicketToolSchema,
-  cancelReservationToolSchema,
-  getUserReservationsToolSchema
-} from './mcp/tools/types/tool-schemas.js';
-import { ToolResult, UserContext } from './mcp/types/mcp-types.js';
-import { logger, mcpLogger } from './utils/logger.js';
+import { logger } from './utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -47,9 +32,6 @@ const MCP_OAUTH_ENABLED = process.env.MCP_OAUTH_ENABLED !== 'false';
 
 const app = express();
 
-// MCP サーバーインスタンス
-let mcpServer: Server | null = null;
-let mcpTransport: StreamableHTTPServerTransport | null = null;
 
 // SSL証明書のパス
 const SSL_KEY_PATH = path.join(__dirname, '../ssl/localhost.key');
@@ -200,192 +182,32 @@ app.get('/health', (req, res) => {
   });
 });
 
-// MCP サーバー初期化
-const initializeMCPServer = async (): Promise<void> => {
 
-  // MCP サーバー作成
-  mcpServer = new Server(
-    {
-      name: 'authlete-study-session-mcp-server',
-      version: '1.0.0'
-    },
-    {
-      capabilities: {
-        tools: {
-          listChanged: false
-        }
-      }
-    }
-  );
-
-  // ツール一覧ハンドラー
-  mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
-    return {
-      tools: [
-        listTicketsToolSchema,
-        searchTicketsToolSchema,
-        reserveTicketToolSchema,
-        cancelReservationToolSchema,
-        getUserReservationsToolSchema
-      ]
-    };
-  });
-
-  // ツール実行ハンドラー
-  mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const { name, arguments: args } = request.params;
-    
-    try {
-      const result = await handleToolCall(name, args || {});
-      return {
-        content: result.content,
-        isError: result.isError || false
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error: ${errorMessage}`
-          }
-        ],
-        isError: true
-      };
-    }
-  });
-
-  // トランスポート作成
-  mcpTransport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined
-  });
-
-  // サーバーとトランスポートを接続
-  await mcpServer.connect(mcpTransport);
-
-  // OAuth認可ミドルウェアをインポート
-  const { oauthAuthentication } = await import('./oauth/middleware/oauth-middleware.js');
-
-  // MCP OAuth認可ミドルウェアの条件付き適用
-  const getMcpMiddleware = () => {
-    mcpLogger.debug('MCP OAuth decision', {
-      enabled: MCP_OAUTH_ENABLED,
-      MCP_OAUTH_ENABLED: process.env.MCP_OAUTH_ENABLED
-    });
-    
-    return MCP_OAUTH_ENABLED 
-      ? [oauthAuthentication({
-          requiredScopes: ['mcp:tickets:read'], // 基本的な読み取りスコープを要求
-          requireSSL: HTTPS_ENABLED
-        })]
-      : []; // OAuth無効時は認証ミドルウェアをスキップ
-  };
-
-  mcpLogger.info('MCP OAuth Authentication configuration', {
-    enabled: MCP_OAUTH_ENABLED,
-    environment: {
-      NODE_ENV: process.env.NODE_ENV,
-      MCP_OAUTH_ENABLED: process.env.MCP_OAUTH_ENABLED
-    }
-  });
-
-  // MCP エンドポイントを追加
-  app.post('/mcp', 
-    (req, res, next) => {
-      // 実行時にOAuth設定を再評価してミドルウェアを適用
-      const middleware = getMcpMiddleware();
-      if (middleware.length === 0) {
-        // OAuth無効の場合は直接次の処理に進む
-        next();
-      } else {
-        // OAuth有効の場合は認証ミドルウェアを実行
-        middleware[0](req, res, next);
-      }
-    },
-    async (req, res) => {
-    try {
-      if (!mcpTransport) {
-        return res.status(503).json({
-          error: {
-            code: -32603,
-            message: 'MCP server not initialized',
-            data: 'Server is starting up'
-          }
-        });
-      }
-      await mcpTransport.handleRequest(req, res, req.body);
-    } catch (error) {
-      mcpLogger.error('MCP request handling failed', error);
-      res.status(500).json({
-        error: {
-          code: -32603,
-          message: 'Internal error',
-          data: error instanceof Error ? error.message : 'Unknown error'
-        }
-      });
-    }
-  });
-
-  // MCP ヘルスチェック
-  app.get('/mcp/health', (_req, res) => {
-    res.json({
-      status: 'OK',
-      timestamp: new Date().toISOString(),
-      service: 'MCP Ticket Server'
-    });
-  });
-
-  // MCP サーバー情報
-  app.get('/mcp/info', (_req, res) => {
-    res.json({
-      name: 'authlete-study-session-mcp-server',
-      version: '1.0.0',
-      capabilities: {
-        tools: {
-          listChanged: false
-        }
-      },
-      endpoints: {
-        mcp: '/mcp',
-        health: '/mcp/health',
-        info: '/mcp/info'
-      },
-      oauth: {
-        enabled: MCP_OAUTH_ENABLED,
-        requiredScopes: MCP_OAUTH_ENABLED ? ['mcp:tickets:read'] : null
-      }
-    });
-  });
-
-  mcpLogger.info('MCP Server initialized successfully');
-};
-
-// MCP ツール処理
-const handleToolCall = async (name: string, args: any): Promise<ToolResult> => {
-  // TODO: ユーザーコンテキストの取得を実装
-  const userContext: UserContext | undefined = undefined;
-
-  switch (name) {
-    case "list_tickets":
-      return TicketTools.listTickets(args, userContext);
-    case "search_tickets":
-      return TicketTools.searchTickets(args, userContext);
-    case "reserve_ticket":
-      return TicketTools.reserveTicket(args, userContext);
-    case "cancel_reservation":
-      return TicketTools.cancelReservation(args, userContext);
-    case "get_user_reservations":
-      return TicketTools.getUserReservations(args, userContext);
-    default:
-      throw new Error(`Unknown tool: ${name}`);
-  }
-};
 
 const startServer = async (): Promise<void> => {
   try {
     await DatabaseConfig.initialize();
     AuthService.initializePassport();
-    await initializeMCPServer();
+    // MCP サーバー初期化
+    const { MCPServerManager } = await import('./mcp/http-server-manager.js');
+    const { createMCPRoutes } = await import('./mcp/routes/mcp-routes.js');
+    const { oauthAuthentication } = await import('./oauth/middleware/oauth-middleware.js');
+
+    const mcpServerManager = new MCPServerManager();
+    await mcpServerManager.initialize();
+
+    // MCP ルートを追加
+    const mcpRoutes = createMCPRoutes({
+      mcpServerManager,
+      oauthEnabled: MCP_OAUTH_ENABLED,
+      httpsEnabled: HTTPS_ENABLED,
+      oauthMiddleware: oauthAuthentication({
+        requiredScopes: ['mcp:tickets:read'],
+        requireSSL: HTTPS_ENABLED
+      })
+    });
+
+    app.use('/', mcpRoutes);
 
     if (HTTPS_ENABLED) {
       // HTTPS モード
