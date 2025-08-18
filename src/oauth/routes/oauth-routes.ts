@@ -5,6 +5,7 @@ import { IntrospectionController } from '../controllers/introspection.js';
 import { DCRController } from '../controllers/dcr.js';
 import { createAuthleteClient, AuthleteClient } from '../authlete/client.js';
 import { getAuthleteConfig } from '../config/authlete-config.js';
+import { dcrOAuthAuthentication } from '../middleware/oauth-middleware.js';
 import { oauthLogger } from '../../utils/logger.js';
 
 const router = express.Router();
@@ -66,19 +67,19 @@ router.post('/introspect', (req, res) => {
 });
 
 // Dynamic Client Registration (DCR) endpoints - RFC 7591/7592
-router.post('/register', (req, res) => {
+router.post('/register', dcrOAuthAuthentication(), (req, res) => {
   getDCRController().handleClientRegistration(req, res);
 });
 
-router.get('/register/:client_id', (req, res) => {
+router.get('/register/:client_id', dcrOAuthAuthentication(), (req, res) => {
   getDCRController().handleClientGet(req, res);
 });
 
-router.put('/register/:client_id', (req, res) => {
+router.put('/register/:client_id', dcrOAuthAuthentication(), (req, res) => {
   getDCRController().handleClientUpdate(req, res);
 });
 
-router.delete('/register/:client_id', (req, res) => {
+router.delete('/register/:client_id', dcrOAuthAuthentication(), (req, res) => {
   getDCRController().handleClientDelete(req, res);
 });
 
