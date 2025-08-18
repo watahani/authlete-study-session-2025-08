@@ -118,11 +118,11 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
         case 'OK':
           // アクセストークンのリソース検証
           const mcpServerUrl = `${baseUrl}/mcp`;
-          if (introspectionResponse.accessTokenResources && 
+          if (!introspectionResponse.accessTokenResources || 
               !introspectionResponse.accessTokenResources.includes(mcpServerUrl)) {
             oauthLogger.warn('Access token does not include MCP server resource', {
               requiredResource: mcpServerUrl,
-              accessTokenResources: introspectionResponse.accessTokenResources
+              accessTokenResources: introspectionResponse.accessTokenResources || []
             });
             
             const wwwAuthResource = `Bearer realm="${baseUrl}", ` +
