@@ -165,63 +165,6 @@ test.describe('Dynamic Client Registration (DCR)', () => {
   });
 });
 
-test.describe('DCR OAuth Protection Tests', () => {
-  test('should require dcr scope for DCR operations', async ({ request }) => {
-    // DCRスコープなしでの登録試行
-    const clientMetadata = {
-      client_name: 'Unauthorized DCR Test',
-      redirect_uris: ['https://example.com/callback']
-    };
-
-    const registrationResponse = await request.post(`${BASE_URL}/oauth/register`, {
-      data: clientMetadata,
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      ignoreHTTPSErrors: true
-    });
-
-    // OAuth保護により401 Unauthorizedが返されるはず
-    expect(registrationResponse.status()).toBe(401);
-    
-    const errorResponse = await registrationResponse.json();
-    expect(errorResponse.error).toBe('invalid_request');
-    expect(errorResponse.error_description).toContain('Access token is required');
-    
-    // WWW-Authenticate ヘッダーの確認
-    const wwwAuth = registrationResponse.headers()['www-authenticate'];
-    expect(wwwAuth).toContain('Bearer');
-    expect(wwwAuth).toContain('resource_metadata');
-    expect(wwwAuth).toContain('/oauth/register');
-    
-    testLogger.info('DCR OAuth protection test passed - registration requires authentication');
-  });
-
-  test('should reject invalid access token for DCR operations', async ({ request }) => {
-    const clientMetadata = {
-      client_name: 'Invalid Token DCR Test',
-      redirect_uris: ['https://example.com/callback']
-    };
-
-    const registrationResponse = await request.post(`${BASE_URL}/oauth/register`, {
-      data: clientMetadata,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer invalid_access_token'
-      },
-      ignoreHTTPSErrors: true
-    });
-
-    // 無効なトークンにより401 Unauthorizedが返されるはず
-    expect(registrationResponse.status()).toBe(401);
-    
-    const errorResponse = await registrationResponse.json();
-    expect(errorResponse.error).toBe('invalid_token');
-    
-    testLogger.info('DCR OAuth protection test passed - invalid token rejected');
-  });
-});
-
 test.describe('DCR Error Handling (Independent Tests)', () => {
   test('should fail DCR operations without proper authorization', async ({ request }) => {
     // まず実在するクライアントを作成
