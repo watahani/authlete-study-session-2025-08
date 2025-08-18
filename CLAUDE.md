@@ -52,6 +52,15 @@ npx playwright show-report
 
 # 開発サーバー起動（HTTPS + MCP統合）
 npm run dev
+
+# OAuthテスト実行（OAuth middleware等）
+npx playwright test --config=playwright-oauth.config.ts
+
+# 特定のOAuthテストファイル実行
+npx playwright test tests/oauth-middleware.spec.ts --config=playwright-oauth.config.ts
+
+# MCPテスト実行（OAuth無効）
+npx playwright test tests/mcp-server.spec.ts
 ```
 
 ## デバッグ方法
@@ -159,6 +168,7 @@ git push origin feature/ticket-search
 - クラスは Error 継承などの必要な場合のみ使用
 - ハードコーディングを避ける
 - Authlete API は SDK を使わず HTTP クライアントで直接呼び出し
+- **`console.log` は使用禁止**: デバッグ情報は構造化ログシステム（logger）を使用する
 
 ## Git 使用ルール
 
