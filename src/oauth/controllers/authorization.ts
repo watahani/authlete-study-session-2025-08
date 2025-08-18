@@ -87,7 +87,7 @@ export class AuthorizationController {
     }
   }
 
-  private async handleNoInteraction(req: Request, res: Response, response: any): Promise<void> {
+  private async handleNoInteraction(_req: Request, res: Response, _response: any): Promise<void> {
     res.status(400).json({
       error: 'interaction_required',
       error_description: 'User interaction is required'
@@ -104,19 +104,7 @@ export class AuthorizationController {
     }
 
     oauthLogger.debug('Authlete response debug', response);
-
-
-    // デバッグ: Authleteレスポンスの内容をログ出力
-    oauthLogger.debug('Authlete response debug', {
-      action: response.action,
-      ticket: !!response.ticket,
-      client: !!response.client,
-      scopes: response.scopes,
-      scopesType: typeof response.scopes,
-      scopesIsArray: Array.isArray(response.scopes),
-      scopesLength: response.scopes?.length,
-      scopesDetail: response.scopes
-    });
+    oauthLogger.debug('here');
 
     // セッション情報の保存前デバッグ
     oauthLogger.debug('Before session save', {
@@ -125,16 +113,47 @@ export class AuthorizationController {
       ticket: response.ticket
     });
     
+    // WORKAROUND: Authlete authorization レスポンスにauthorizationDetailsTypesが含まれないため、
+    // 別途 client/get API を呼び出してクライアント詳細を取得する
+    let clientWithAuthDetails = response.client;
+    if (response.client?.clientId) {
+      try {
+        const clientDetails = await this.authleteClient.makeGetRequest<any>(
+          `/client/get/${response.client.clientId}`
+        );
+        
+        oauthLogger.debug('Client details from client/get API', {
+          clientId: response.client.clientId,
+          hasAuthorizationDetailsTypes: !!clientDetails.authorizationDetailsTypes,
+          authorizationDetailsTypes: clientDetails.authorizationDetailsTypes
+        });
+
+        // クライアント情報にauthorizationDetailsTypesを追加
+        if (clientDetails.authorizationDetailsTypes) {
+          clientWithAuthDetails = {
+            ...response.client,
+            authorizationDetailsTypes: clientDetails.authorizationDetailsTypes
+          };
+        }
+      } catch (error) {
+        oauthLogger.warn('Failed to fetch client details for authorizationDetailsTypes', {
+          clientId: response.client.clientId,
+          error: error
+        });
+      }
+    }
+
     // セッションにOAuth情報を保存
     req.session.oauthTicket = response.ticket;
-    req.session.oauthClient = response.client;
+    req.session.oauthClient = clientWithAuthDetails;
     req.session.oauthScopes = Array.isArray(response.scopes) ? response.scopes : [];
 
     // 保存直後の確認
     oauthLogger.debug('After assignment - Session OAuth data', {
       oauthTicket: req.session.oauthTicket,
       oauthClient: !!req.session.oauthClient,
-      oauthScopes: !!req.session.oauthScopes
+      oauthScopes: !!req.session.oauthScopes,
+      clientAuthDetailsTypes: req.session.oauthClient?.authorizationDetailsTypes
     });
 
     // セッション保存を確実に行う

@@ -73,6 +73,52 @@ export class AuthleteClient implements AuthleteApiClient {
     }
   }
 
+  public async makeGetRequest<T>(endpoint: string): Promise<T> {
+    const url = `${this.config.baseUrl}/api/${this.config.serviceId}${endpoint}`;
+    
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.config.serviceAccessToken}`,
+          'Accept': 'application/json'
+        }
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        // Authlete APIエラーの詳細ログ
+        console.error('Authlete API Error Details:', {
+          status: response.status,
+          statusText: response.statusText,
+          responseData: responseData,
+          url: url,
+          method: 'GET'
+        });
+        
+        const error = new Error(
+          `Authlete API error: ${response.status} ${response.statusText}`
+        ) as AuthleteError;
+        error.status = response.status;
+        error.response = responseData as { resultCode?: string; resultMessage?: string };
+        throw error;
+      }
+
+      return responseData as T;
+    } catch (error) {
+      if (error instanceof Error && 'status' in error) {
+        throw error;
+      }
+      
+      const authleteError = new Error(
+        `Authlete API request failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      ) as AuthleteError;
+      
+      throw authleteError;
+    }
+  }
+
   async authorize(request: AuthorizationRequest): Promise<AuthorizationResponse> {
     return this.makeRequest<AuthorizationResponse>('/auth/authorization', request);
   }
