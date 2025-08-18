@@ -21,11 +21,9 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
-// 環境変数からHTTPS有効/無効を判定
-const HTTPS_ENABLED = process.env.HTTPS_ENABLED === 'true';
-const HTTP_PORT = process.env.HTTP_PORT || 3000;
+// HTTPSポート設定
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
-const PORT = HTTPS_ENABLED ? HTTPS_PORT : HTTP_PORT;
+const HTTP_PORT = process.env.HTTP_PORT || 3000;
 
 // MCP OAuth認可の有効/無効を判定（明示的にfalseの場合のみ無効）
 const MCP_OAUTH_ENABLED = process.env.MCP_OAUTH_ENABLED !== 'false';
@@ -54,13 +52,11 @@ const helmetConfig: any = {
 };
 
 // HTTPS専用のセキュリティヘッダー
-if (HTTPS_ENABLED) {
-  helmetConfig.hsts = {
-    maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true
-  };
-}
+helmetConfig.hsts = {
+  maxAge: 31536000,
+  includeSubDomains: true,
+  preload: true
+};
 
 app.use(helmet(helmetConfig));
 
@@ -72,14 +68,12 @@ const corsOrigins = [
   /^http:\/\/\[::1\]:\d+$/
 ];
 
-// HTTPS有効時はHTTPS URLも許可
-if (HTTPS_ENABLED) {
-  corsOrigins.push(
-    /^https:\/\/localhost:\d+$/,
-    /^https:\/\/127\.0\.0\.1:\d+$/,
-    /^https:\/\/\[::1\]:\d+$/
-  );
-}
+// HTTPS URLも許可
+corsOrigins.push(
+  /^https:\/\/localhost:\d+$/,
+  /^https:\/\/127\.0\.0\.1:\d+$/,
+  /^https:\/\/\[::1\]:\d+$/
+);
 
 app.use(cors({
   origin: corsOrigins,
@@ -98,7 +92,7 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: { 
-    secure: HTTPS_ENABLED, // HTTPS時のみセキュアクッキーを有効
+    secure: true, // HTTPS環境のためセキュアクッキーを有効
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000 // 24時間
   }
@@ -171,9 +165,9 @@ app.get('/', (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-// ヘルスチェックエンドポイント（HTTP/HTTPS対応）
-app.get('/health', (req, res) => {
-  const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' || HTTPS_ENABLED ? 'HTTPS' : 'HTTP';
+// ヘルスチェックエンドポイント
+app.get('/health', (_req, res) => {
+  const protocol = 'HTTPS'; // 常にHTTPS環境
   res.json({
     status: 'OK',
     protocol: protocol,
@@ -200,17 +194,15 @@ const startServer = async (): Promise<void> => {
     const mcpRoutes = createMCPRoutes({
       mcpServerManager,
       oauthEnabled: MCP_OAUTH_ENABLED,
-      httpsEnabled: HTTPS_ENABLED,
       oauthMiddleware: oauthAuthentication({
         requiredScopes: ['mcp:tickets:read'],
-        requireSSL: HTTPS_ENABLED
+        requireSSL: true
       })
     });
 
     app.use('/', mcpRoutes);
 
-    if (HTTPS_ENABLED) {
-      // HTTPS モード
+    // HTTPS モード
       
       // SSL証明書の確認
       if (!checkSSLCertificates()) {
@@ -249,15 +241,6 @@ const startServer = async (): Promise<void> => {
         logger.info(`HTTP Server running on http://localhost:${HTTP_PORT} (redirects to HTTPS)`);
       });
 
-    } else {
-      // HTTP モード
-      app.listen(PORT, () => {
-        logger.info(`HTTP Server running on http://localhost:${PORT}`);
-        logger.info(`MCP endpoint: http://localhost:${PORT}/mcp`);
-        logger.info(`MCP health check: http://localhost:${PORT}/mcp/health`);
-        logger.info(`App health check: http://localhost:${PORT}/health`);
-      });
-    }
   } catch (error) {
     logger.error('Failed to start server', error);
     process.exit(1);

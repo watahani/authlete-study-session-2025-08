@@ -49,13 +49,9 @@ export default defineConfig({
     timeout: 120 * 1000,
     ignoreHTTPSErrors: true,
     env: {
-      HTTPS_ENABLED: 'true',
       MCP_OAUTH_ENABLED: 'false',
       NODE_ENV: 'test',
       LOG_LEVEL: process.env.CI ? 'info' : 'debug',
-      AUTHLETE_SERVICE_ACCESS_TOKEN: process.env.AUTHLETE_SERVICE_ACCESS_TOKEN || '',
-      AUTHLETE_SERVICE_ID: process.env.AUTHLETE_SERVICE_ID || '',
-      AUTHLETE_BASE_URL: process.env.AUTHLETE_BASE_URL || '',
     }
   },
 });

@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/app.js",
-    "dev": "HTTPS_ENABLED=true tsx src/app.ts",
+    "dev": "tsx src/app.ts",
     "generate-ssl": "./scripts/generate-ssl-cert.sh",
     "mcp-server": "tsx src/mcp/server.ts",
     "mcp-http": "tsx src/mcp/http-main.ts",

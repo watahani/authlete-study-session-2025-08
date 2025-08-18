@@ -284,8 +284,6 @@ cp .env.example .env
 
 ```bash
 # サーバー設定
-HTTPS_ENABLED=true              # HTTPS有効化（default: false）
-HTTP_PORT=3000                 # HTTPポート（default: 3000）
 HTTPS_PORT=3443                # HTTPSポート（default: 3443）
 SESSION_SECRET=your-secret     # セッション秘密鍵
 

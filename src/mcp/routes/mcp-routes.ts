@@ -5,7 +5,6 @@ import { mcpLogger } from '../../utils/logger.js';
 export interface MCPRoutesOptions {
   mcpServerManager: MCPServerManager;
   oauthEnabled: boolean;
-  httpsEnabled: boolean;
   oauthMiddleware?: (req: Request, res: Response, next: NextFunction) => void;
 }
 

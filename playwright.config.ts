@@ -95,7 +95,6 @@ export default defineConfig({
     timeout: 120 * 1000,
     ignoreHTTPSErrors: true,
     env: {
-      HTTPS_ENABLED: 'true',
       MCP_OAUTH_ENABLED: 'false',
       NODE_ENV: 'test',
       LOG_LEVEL: process.env.CI ? 'info' : 'debug',
