@@ -95,6 +95,15 @@ router.get('/authorize/consent', (req, res) => {
     allSessionKeys: Object.keys(req.session)
   });
 
+  // Authorization Details サポート確認のデバッグログ
+  oauthLogger.debug('Authorization Details support check', {
+    clientId: oauthClient?.clientId,
+    clientName: oauthClient?.clientName,
+    authorizationDetailsTypes: oauthClient?.authorizationDetailsTypes,
+    hasTicketReservation: oauthClient?.authorizationDetailsTypes?.includes('ticket-reservation'),
+    fullClient: oauthClient
+  });
+
   // セッション情報の検証
   if (!oauthTicket || !oauthClient || !oauthScopes) {
     oauthLogger.warn('Missing session data', { oauthTicket, oauthClient: !!oauthClient, oauthScopes: !!oauthScopes });
@@ -121,6 +130,13 @@ router.get('/authorize/consent', (req, res) => {
         .client-info { background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; }
         .scopes { margin: 20px 0; }
         .scope { margin: 10px 0; padding: 10px; background: #f9f9f9; border-left: 3px solid #007bff; }
+        .authorization-details { margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 5px; }
+        .auth-detail-option { margin: 15px 0; }
+        .auth-detail-option label { margin-left: 8px; cursor: pointer; }
+        .custom-options { padding: 15px; background: white; border-radius: 3px; border: 1px solid #dee2e6; }
+        .limit-option { margin: 15px 0; }
+        .limit-option label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .limit-option input[type="number"] { width: 100px; padding: 5px; margin: 0 5px; }
         .buttons { margin: 30px 0; }
         button { padding: 10px 20px; margin: 0 10px; border: none; border-radius: 5px; cursor: pointer; }
         .approve { background: #28a745; color: white; }
@@ -146,9 +162,37 @@ router.get('/authorize/consent', (req, res) => {
         `).join('')}
       </div>
 
+      <!-- Authorization Details Support Debug: 
+           authorizationDetailsTypes: ${JSON.stringify(oauthClient.authorizationDetailsTypes)}
+           hasTicketReservation: ${oauthClient.authorizationDetailsTypes && oauthClient.authorizationDetailsTypes.includes('ticket-reservation')}
+      -->
+      ${oauthClient.authorizationDetailsTypes && oauthClient.authorizationDetailsTypes.includes('ticket-reservation') ? `
+      <div class="authorization-details">
+        <h3>詳細なアクセス権限設定</h3>
+        <div class="auth-detail-option">
+          <input type="radio" id="scope-only" name="auth-detail-mode" value="scope-only" checked>
+          <label for="scope-only">標準権限 (上記スコープの範囲ですべて許可)</label>
+        </div>
+        
+        <div class="auth-detail-option">
+          <input type="radio" id="custom-limits" name="auth-detail-mode" value="custom">
+          <label for="custom-limits">金額制限付き</label>
+          
+          <div class="custom-options" id="custom-options" style="display: none; margin-left: 20px; margin-top: 10px;">
+            <div class="limit-option">
+              <label for="max-amount">予約可能な最大金額:</label>
+              <input type="number" id="max-amount" name="max-amount" min="0" value="10000" step="100">
+              <span>円</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      ` : ''}
+
       <div class="buttons">
-        <form action="/oauth/authorize/decision" method="post" style="display: inline;">
+        <form id="consent-form" action="/oauth/authorize/decision" method="post" style="display: inline;">
           <input type="hidden" name="authorized" value="true">
+          <input type="hidden" name="authorizationDetailsJson" id="authorizationDetailsJson">
           <button type="submit" class="approve">許可する</button>
         </form>
         
@@ -157,6 +201,50 @@ router.get('/authorize/consent', (req, res) => {
           <button type="submit" class="deny">拒否する</button>
         </form>
       </div>
+
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          const scopeOnlyRadio = document.getElementById('scope-only');
+          const customLimitsRadio = document.getElementById('custom-limits');
+          const customOptions = document.getElementById('custom-options');
+          const consentForm = document.getElementById('consent-form');
+
+          // authorization detailsが有効な場合のみ処理を実行
+          if (scopeOnlyRadio && customLimitsRadio && customOptions) {
+            // ラジオボタンの切り替え処理
+            function toggleCustomOptions() {
+              if (customLimitsRadio.checked) {
+                customOptions.style.display = 'block';
+              } else {
+                customOptions.style.display = 'none';
+              }
+            }
+
+            scopeOnlyRadio.addEventListener('change', toggleCustomOptions);
+            customLimitsRadio.addEventListener('change', toggleCustomOptions);
+
+            // フォーム送信時の処理
+            consentForm.addEventListener('submit', function(e) {
+              if (customLimitsRadio.checked) {
+                const maxAmount = document.getElementById('max-amount').value;
+
+                const authorizationDetails = [{
+                  type: "ticket-reservation",
+                  actions: ["book", "cancel"],
+                  otherFields: JSON.stringify({
+                    maxAmount: parseInt(maxAmount),
+                    currency: "JPY"
+                  })
+                }];
+
+                document.getElementById('authorizationDetailsJson').value = JSON.stringify(authorizationDetails);
+              } else {
+                document.getElementById('authorizationDetailsJson').value = '';
+              }
+            });
+          }
+        });
+      </script>
     </body>
     </html>
   `);
@@ -186,7 +274,7 @@ router.post('/authorize/decision', async (req, res) => {
   });
   
   try {
-    const { authorized } = req.body;
+    const { authorized, authorizationDetailsJson } = req.body;
     const user = req.user as any;
     const { oauthTicket, oauthClient, oauthScopes } = req.session;
     
@@ -218,16 +306,42 @@ router.post('/authorize/decision', async (req, res) => {
     const ticket = oauthTicket;
 
     if (authorized === 'true') {
-      const issueParams = {
+      const issueParams: {
+        ticket: string;
+        subject: string;
+        authorizationDetails?: {
+          elements: any[];
+        };
+      } = {
         ticket,
         subject: user.id.toString() // ユーザーIDを文字列として設定
       };
+
+      // authorizationDetailsの処理
+      if (authorizationDetailsJson && authorizationDetailsJson.trim() !== '') {
+        try {
+          const authorizationDetailsArray = JSON.parse(authorizationDetailsJson);
+          issueParams.authorizationDetails = {
+            elements: authorizationDetailsArray // elements配列として設定
+          };
+          
+          oauthLogger.debug('Authorization details parsed', {
+            authorizationDetails: issueParams.authorizationDetails
+          });
+        } catch (error) {
+          oauthLogger.error('Failed to parse authorization details JSON', { 
+            authorizationDetailsJson, 
+            error 
+          });
+        }
+      }
       
       // デバッグログ: issue エンドポイントに送信するパラメーター
       oauthLogger.debug('Authlete authorization/issue request params', {
         ticket: ticket.substring(0, 20) + '...',
         subject: issueParams.subject,
-        username: user.username
+        username: user.username,
+        hasAuthorizationDetails: !!issueParams.authorizationDetails
       });
       
       const issueResponse = await (getAuthleteClient() as any).makeRequest('/auth/authorization/issue', issueParams);

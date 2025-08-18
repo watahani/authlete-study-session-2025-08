@@ -57,6 +57,7 @@ export interface OAuthClient {
   clientName?: string;
   logoUri?: string;
   number?: number;
+  authorizationDetailsTypes?: string[];
 }
 
 export interface OAuthScope {
