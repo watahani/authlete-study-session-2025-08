@@ -6,14 +6,11 @@ export interface OAuthConfig {
   revocationEndpoint: string;
   discoveryEndpoint: string;
   sessionSecret: string;
-  httpsEnabled: boolean;
 }
 
 export const getOAuthConfig = (): OAuthConfig => {
-  const httpsEnabled = process.env.HTTPS_ENABLED === 'true';
-  const protocol = httpsEnabled ? 'https' : 'http';
-  const port = httpsEnabled ? (process.env.HTTPS_PORT || '3443') : (process.env.HTTP_PORT || '3000');
-  const baseUrl = `${protocol}://localhost:${port}`;
+  const port = process.env.HTTPS_PORT || '3443';
+  const baseUrl = `https://localhost:${port}`;
 
   return {
     issuer: baseUrl,
@@ -22,7 +19,6 @@ export const getOAuthConfig = (): OAuthConfig => {
     userinfoEndpoint: `${baseUrl}/oauth/userinfo`,
     revocationEndpoint: `${baseUrl}/oauth/revoke`,
     discoveryEndpoint: `${baseUrl}/.well-known/oauth-authorization-server`,
-    sessionSecret: process.env.SESSION_SECRET || 'default-oauth-secret',
-    httpsEnabled
+    sessionSecret: process.env.SESSION_SECRET || 'default-oauth-secret'
   };
 };

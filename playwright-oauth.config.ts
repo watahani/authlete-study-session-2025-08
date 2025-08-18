@@ -49,7 +49,6 @@ export default defineConfig({
     timeout: 120 * 1000,
     ignoreHTTPSErrors: true,
     env: {
-      HTTPS_ENABLED: 'true',
       MCP_OAUTH_ENABLED: 'true', // OAuth機能を明示的に有効化
       NODE_ENV: 'test',
       LOG_LEVEL: process.env.CI ? 'info' : 'debug',

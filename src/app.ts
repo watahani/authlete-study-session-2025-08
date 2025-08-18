@@ -8,48 +8,28 @@ import helmet from 'helmet';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { 
-  CallToolRequestSchema, 
-  ListToolsRequestSchema 
-} from '@modelcontextprotocol/sdk/types.js';
 
 import { MockDatabaseConfig as DatabaseConfig } from './config/mock-database.js';
 import { AuthService } from './services/AuthService.js';
 import { authRoutes } from './routes/auth.js';
 import { ticketRoutes } from './routes/tickets.js';
 import { oauthRoutes } from './oauth/routes/oauth-routes.js';
-import { TicketTools } from './mcp/tools/ticket-tools.js';
-import { 
-  listTicketsToolSchema,
-  searchTicketsToolSchema,
-  reserveTicketToolSchema,
-  cancelReservationToolSchema,
-  getUserReservationsToolSchema
-} from './mcp/tools/types/tool-schemas.js';
-import { ToolResult, UserContext } from './mcp/types/mcp-types.js';
-import { logger, mcpLogger } from './utils/logger.js';
+import { logger } from './utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
-// 環境変数からHTTPS有効/無効を判定
-const HTTPS_ENABLED = process.env.HTTPS_ENABLED === 'true';
-const HTTP_PORT = process.env.HTTP_PORT || 3000;
+// HTTPSポート設定
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
-const PORT = HTTPS_ENABLED ? HTTPS_PORT : HTTP_PORT;
+const HTTP_PORT = process.env.HTTP_PORT || 3000;
 
 // MCP OAuth認可の有効/無効を判定（明示的にfalseの場合のみ無効）
 const MCP_OAUTH_ENABLED = process.env.MCP_OAUTH_ENABLED !== 'false';
 
 const app = express();
 
-// MCP サーバーインスタンス
-let mcpServer: Server | null = null;
-let mcpTransport: StreamableHTTPServerTransport | null = null;
 
 // SSL証明書のパス
 const SSL_KEY_PATH = path.join(__dirname, '../ssl/localhost.key');
@@ -72,13 +52,11 @@ const helmetConfig: any = {
 };
 
 // HTTPS専用のセキュリティヘッダー
-if (HTTPS_ENABLED) {
-  helmetConfig.hsts = {
-    maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true
-  };
-}
+helmetConfig.hsts = {
+  maxAge: 31536000,
+  includeSubDomains: true,
+  preload: true
+};
 
 app.use(helmet(helmetConfig));
 
@@ -90,14 +68,12 @@ const corsOrigins = [
   /^http:\/\/\[::1\]:\d+$/
 ];
 
-// HTTPS有効時はHTTPS URLも許可
-if (HTTPS_ENABLED) {
-  corsOrigins.push(
-    /^https:\/\/localhost:\d+$/,
-    /^https:\/\/127\.0\.0\.1:\d+$/,
-    /^https:\/\/\[::1\]:\d+$/
-  );
-}
+// HTTPS URLも許可
+corsOrigins.push(
+  /^https:\/\/localhost:\d+$/,
+  /^https:\/\/127\.0\.0\.1:\d+$/,
+  /^https:\/\/\[::1\]:\d+$/
+);
 
 app.use(cors({
   origin: corsOrigins,
@@ -116,7 +92,7 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: { 
-    secure: HTTPS_ENABLED, // HTTPS時のみセキュアクッキーを有効
+    secure: true, // HTTPS環境のためセキュアクッキーを有効
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000 // 24時間
   }
@@ -189,9 +165,9 @@ app.get('/', (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-// ヘルスチェックエンドポイント（HTTP/HTTPS対応）
-app.get('/health', (req, res) => {
-  const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' || HTTPS_ENABLED ? 'HTTPS' : 'HTTP';
+// ヘルスチェックエンドポイント
+app.get('/health', (_req, res) => {
+  const protocol = 'HTTPS'; // 常にHTTPS環境
   res.json({
     status: 'OK',
     protocol: protocol,
@@ -200,195 +176,33 @@ app.get('/health', (req, res) => {
   });
 });
 
-// MCP サーバー初期化
-const initializeMCPServer = async (): Promise<void> => {
 
-  // MCP サーバー作成
-  mcpServer = new Server(
-    {
-      name: 'authlete-study-session-mcp-server',
-      version: '1.0.0'
-    },
-    {
-      capabilities: {
-        tools: {
-          listChanged: false
-        }
-      }
-    }
-  );
-
-  // ツール一覧ハンドラー
-  mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
-    return {
-      tools: [
-        listTicketsToolSchema,
-        searchTicketsToolSchema,
-        reserveTicketToolSchema,
-        cancelReservationToolSchema,
-        getUserReservationsToolSchema
-      ]
-    };
-  });
-
-  // ツール実行ハンドラー
-  mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const { name, arguments: args } = request.params;
-    
-    try {
-      const result = await handleToolCall(name, args || {});
-      return {
-        content: result.content,
-        isError: result.isError || false
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error: ${errorMessage}`
-          }
-        ],
-        isError: true
-      };
-    }
-  });
-
-  // トランスポート作成
-  mcpTransport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined
-  });
-
-  // サーバーとトランスポートを接続
-  await mcpServer.connect(mcpTransport);
-
-  // OAuth認可ミドルウェアをインポート
-  const { oauthAuthentication } = await import('./oauth/middleware/oauth-middleware.js');
-
-  // MCP OAuth認可ミドルウェアの条件付き適用
-  const getMcpMiddleware = () => {
-    mcpLogger.debug('MCP OAuth decision', {
-      enabled: MCP_OAUTH_ENABLED,
-      MCP_OAUTH_ENABLED: process.env.MCP_OAUTH_ENABLED
-    });
-    
-    return MCP_OAUTH_ENABLED 
-      ? [oauthAuthentication({
-          requiredScopes: ['mcp:tickets:read'], // 基本的な読み取りスコープを要求
-          requireSSL: HTTPS_ENABLED
-        })]
-      : []; // OAuth無効時は認証ミドルウェアをスキップ
-  };
-
-  mcpLogger.info('MCP OAuth Authentication configuration', {
-    enabled: MCP_OAUTH_ENABLED,
-    environment: {
-      NODE_ENV: process.env.NODE_ENV,
-      MCP_OAUTH_ENABLED: process.env.MCP_OAUTH_ENABLED
-    }
-  });
-
-  // MCP エンドポイントを追加
-  app.post('/mcp', 
-    (req, res, next) => {
-      // 実行時にOAuth設定を再評価してミドルウェアを適用
-      const middleware = getMcpMiddleware();
-      if (middleware.length === 0) {
-        // OAuth無効の場合は直接次の処理に進む
-        next();
-      } else {
-        // OAuth有効の場合は認証ミドルウェアを実行
-        middleware[0](req, res, next);
-      }
-    },
-    async (req, res) => {
-    try {
-      if (!mcpTransport) {
-        return res.status(503).json({
-          error: {
-            code: -32603,
-            message: 'MCP server not initialized',
-            data: 'Server is starting up'
-          }
-        });
-      }
-      await mcpTransport.handleRequest(req, res, req.body);
-    } catch (error) {
-      mcpLogger.error('MCP request handling failed', error);
-      res.status(500).json({
-        error: {
-          code: -32603,
-          message: 'Internal error',
-          data: error instanceof Error ? error.message : 'Unknown error'
-        }
-      });
-    }
-  });
-
-  // MCP ヘルスチェック
-  app.get('/mcp/health', (_req, res) => {
-    res.json({
-      status: 'OK',
-      timestamp: new Date().toISOString(),
-      service: 'MCP Ticket Server'
-    });
-  });
-
-  // MCP サーバー情報
-  app.get('/mcp/info', (_req, res) => {
-    res.json({
-      name: 'authlete-study-session-mcp-server',
-      version: '1.0.0',
-      capabilities: {
-        tools: {
-          listChanged: false
-        }
-      },
-      endpoints: {
-        mcp: '/mcp',
-        health: '/mcp/health',
-        info: '/mcp/info'
-      },
-      oauth: {
-        enabled: MCP_OAUTH_ENABLED,
-        requiredScopes: MCP_OAUTH_ENABLED ? ['mcp:tickets:read'] : null
-      }
-    });
-  });
-
-  mcpLogger.info('MCP Server initialized successfully');
-};
-
-// MCP ツール処理
-const handleToolCall = async (name: string, args: any): Promise<ToolResult> => {
-  // TODO: ユーザーコンテキストの取得を実装
-  const userContext: UserContext | undefined = undefined;
-
-  switch (name) {
-    case "list_tickets":
-      return TicketTools.listTickets(args, userContext);
-    case "search_tickets":
-      return TicketTools.searchTickets(args, userContext);
-    case "reserve_ticket":
-      return TicketTools.reserveTicket(args, userContext);
-    case "cancel_reservation":
-      return TicketTools.cancelReservation(args, userContext);
-    case "get_user_reservations":
-      return TicketTools.getUserReservations(args, userContext);
-    default:
-      throw new Error(`Unknown tool: ${name}`);
-  }
-};
 
 const startServer = async (): Promise<void> => {
   try {
     await DatabaseConfig.initialize();
     AuthService.initializePassport();
-    await initializeMCPServer();
+    // MCP サーバー初期化
+    const { MCPServerManager } = await import('./mcp/http-server-manager.js');
+    const { createMCPRoutes } = await import('./mcp/routes/mcp-routes.js');
+    const { oauthAuthentication } = await import('./oauth/middleware/oauth-middleware.js');
 
-    if (HTTPS_ENABLED) {
-      // HTTPS モード
+    const mcpServerManager = new MCPServerManager();
+    await mcpServerManager.initialize();
+
+    // MCP ルートを追加
+    const mcpRoutes = createMCPRoutes({
+      mcpServerManager,
+      oauthEnabled: MCP_OAUTH_ENABLED,
+      oauthMiddleware: oauthAuthentication({
+        requiredScopes: ['mcp:tickets:read'],
+        requireSSL: true
+      })
+    });
+
+    app.use('/', mcpRoutes);
+
+    // HTTPS モード
       
       // SSL証明書の確認
       if (!checkSSLCertificates()) {
@@ -427,15 +241,6 @@ const startServer = async (): Promise<void> => {
         logger.info(`HTTP Server running on http://localhost:${HTTP_PORT} (redirects to HTTPS)`);
       });
 
-    } else {
-      // HTTP モード
-      app.listen(PORT, () => {
-        logger.info(`HTTP Server running on http://localhost:${PORT}`);
-        logger.info(`MCP endpoint: http://localhost:${PORT}/mcp`);
-        logger.info(`MCP health check: http://localhost:${PORT}/mcp/health`);
-        logger.info(`App health check: http://localhost:${PORT}/health`);
-      });
-    }
   } catch (error) {
     logger.error('Failed to start server', error);
     process.exit(1);
