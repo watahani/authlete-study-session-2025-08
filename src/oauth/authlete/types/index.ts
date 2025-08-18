@@ -201,6 +201,7 @@ export interface IntrospectionResponse {
   properties?: Array<{ key: string; value: string }>;
   clientEntityId?: string;
   clientEntityIdUsed?: boolean;
+  accessTokenResources?: string[];
 }
 
 export interface AuthleteError extends Error {

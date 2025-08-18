@@ -129,30 +129,74 @@ test.describe('OAuth Authentication Middleware', () => {
   });
 
   test('Required scope validation works', async ({ page }) => {
-    // 実際のトークンを取得するのは複雑なので、モック的なテストとして
-    // 不正なスコープを持つトークンのシナリオをテスト
+    // Authlete Create Token APIで間違ったスコープのトークンを作成
+    const serviceId = process.env.AUTHLETE_SERVICE_ID;
+    const serviceAccessToken = process.env.AUTHLETE_SERVICE_ACCESS_TOKEN;
+    const baseUrlAuthlete = process.env.AUTHLETE_BASE_URL;
+    
+    if (!serviceId || !serviceAccessToken || !baseUrlAuthlete) {
+      throw new Error('Authlete credentials not configured for testing');
+    }
+    
+    // 間違ったスコープ（MCPに必要ないスコープ）でアクセストークンを作成
+    const createTokenResponse = await page.request.post(`${baseUrlAuthlete}/api/${serviceId}/auth/token/create`, {
+      headers: {
+        'Authorization': `Bearer ${serviceAccessToken}`,
+        'Content-Type': 'application/json'
+      },
+      data: JSON.stringify({
+        grantType: 'AUTHORIZATION_CODE',
+        clientId: 3006291287, // テスト用クライアントID
+        subject: '1', // 存在するテストユーザーID
+        scopes: ['mcp:tickets:read'], // 不十分なスコープ（writeスコープがない）
+        resources: [`${baseUrl}/mcp`] // リソースは正しく指定
+      })
+    });
+    
+    expect(createTokenResponse.status()).toBe(200);
+    const tokenData = await createTokenResponse.json();
+    
+    if (tokenData.action !== 'OK') {
+      throw new Error(`Token creation failed: ${tokenData.resultMessage}`);
+    }
+    
+    expect(tokenData.action).toBe('OK');
+    expect(tokenData.accessToken).toBeDefined();
+    
+    // 不十分なスコープのトークンでwriteスコープが必要なツールを呼び出し
     const response = await page.request.post(`${baseUrl}/mcp`, {
       headers: {
-        'Authorization': 'Bearer mock_token_with_wrong_scope',
+        'Authorization': `Bearer ${tokenData.accessToken}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json, text/event-stream'
       },
       data: JSON.stringify({
         jsonrpc: '2.0',
         id: 1,
-        method: 'tools/list',
-        params: {}
+        method: 'tools/call',
+        params: {
+          name: 'reserve_ticket',
+          arguments: {
+            ticket_id: 1,
+            seats: 2
+          }
+        }
       })
     });
     
-    // 実際の実装では、Authleteがスコープ検証を行い、
-    // 不十分なスコープの場合は403 Forbiddenが返される
-    expect([401, 403]).toContain(response.status());
+    // 不十分なスコープの場合、MCPサーバーマネージャーがUnauthorizedを返す
+    expect(response.status()).toBe(200);
+    const responseText = await response.text();
+    const result = JSON.parse(responseText.split('\n').find(line => line.startsWith('data:'))?.substring(5) || '{}');
+    expect(result.result.isError).toBe(true);
+    expect(result.result.content[0].text).toContain('Unauthorized');
     
-    if (response.status() === 403) {
-      expect(response.headers()['www-authenticate']).toContain('error="insufficient_scope"');
-      expect(response.headers()['www-authenticate']).toContain('scope="mcp:tickets:read"');
-    }
+    // 作成したトークンをクリーンアップ
+    await page.request.delete(`${baseUrlAuthlete}/api/${serviceId}/auth/token/delete/${tokenData.accessToken}`, {
+      headers: {
+        'Authorization': `Bearer ${serviceAccessToken}`
+      }
+    });
   });
 
   test('Health check endpoint does not require OAuth', async ({ page }) => {
@@ -161,5 +205,130 @@ test.describe('OAuth Authentication Middleware', () => {
     
     // ヘルスチェックは認証不要で200を返すべき
     expect(response.status()).toBe(200);
+  });
+
+  test.describe('Access Token Resources Validation', () => {
+    test('Token created without resources parameter should be rejected', async ({ page }) => {
+      // Authlete Create Token APIでresourcesパラメータなしでトークンを作成
+      const serviceId = process.env.AUTHLETE_SERVICE_ID;
+      const serviceAccessToken = process.env.AUTHLETE_SERVICE_ACCESS_TOKEN;
+      const baseUrlAuthlete = process.env.AUTHLETE_BASE_URL;
+      
+      if (!serviceId || !serviceAccessToken || !baseUrlAuthlete) {
+        throw new Error('Authlete credentials not configured for testing');
+      }
+      
+      // resourcesパラメータなしでアクセストークンを作成
+      const createTokenResponse = await page.request.post(`${baseUrlAuthlete}/api/${serviceId}/auth/token/create`, {
+        headers: {
+          'Authorization': `Bearer ${serviceAccessToken}`,
+          'Content-Type': 'application/json'
+        },
+        data: JSON.stringify({
+          grantType: 'AUTHORIZATION_CODE',
+          clientId: 3006291287, // テスト用クライアントID
+          subject: '1', // 存在するテストユーザーID
+          scopes: ['mcp:tickets:read', 'mcp:tickets:write']
+          // resourcesパラメータを意図的に省略
+        })
+      });
+      
+      expect(createTokenResponse.status()).toBe(200);
+      const tokenData = await createTokenResponse.json();
+      expect(tokenData.action).toBe('OK');
+      expect(tokenData.accessToken).toBeDefined();
+      
+      // 作成したトークンでMCPサーバーにアクセス
+      const mcpResponse = await page.request.post(`${baseUrl}/mcp`, {
+        headers: {
+          'Authorization': `Bearer ${tokenData.accessToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream'
+        },
+        data: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/list',
+          params: {}
+        })
+      });
+      
+      // resourcesパラメータなしで作成されたトークンは401エラーになるべき
+      expect(mcpResponse.status()).toBe(401);
+      
+      const wwwAuth = mcpResponse.headers()['www-authenticate'];
+      expect(wwwAuth).toContain('error="invalid_token"');
+      expect(wwwAuth).toContain('error_description="Access token does not include required resource"');
+      
+      const error = await mcpResponse.json();
+      expect(error.error).toBe('invalid_token');
+      expect(error.error_description).toBe('Access token does not include required resource');
+      
+      // 作成したトークンをクリーンアップ
+      await page.request.delete(`${baseUrlAuthlete}/api/${serviceId}/auth/token/delete/${tokenData.accessToken}`, {
+        headers: {
+          'Authorization': `Bearer ${serviceAccessToken}`
+        }
+      });
+    });
+
+    test('Token created with correct resources parameter should pass validation', async ({ page }) => {
+      const serviceId = process.env.AUTHLETE_SERVICE_ID;
+      const serviceAccessToken = process.env.AUTHLETE_SERVICE_ACCESS_TOKEN;
+      const baseUrlAuthlete = process.env.AUTHLETE_BASE_URL;
+      
+      if (!serviceId || !serviceAccessToken || !baseUrlAuthlete) {
+        throw new Error('Authlete credentials not configured for testing');
+      }
+      
+      // resourcesパラメータ付きでアクセストークンを作成
+      const createTokenResponse = await page.request.post(`${baseUrlAuthlete}/api/${serviceId}/auth/token/create`, {
+        headers: {
+          'Authorization': `Bearer ${serviceAccessToken}`,
+          'Content-Type': 'application/json'
+        },
+        data: JSON.stringify({
+          grantType: 'AUTHORIZATION_CODE',
+          clientId: 3006291287, // テスト用クライアントID
+          subject: '1', // 存在するテストユーザーID
+          scopes: ['mcp:tickets:read', 'mcp:tickets:write'],
+          resources: [`${baseUrl}/mcp`] // 正しいリソースを指定
+        })
+      });
+      
+      expect(createTokenResponse.status()).toBe(200);
+      const tokenData = await createTokenResponse.json();
+      expect(tokenData.action).toBe('OK');
+      expect(tokenData.accessToken).toBeDefined();
+      
+      // 作成したトークンでMCPサーバーにアクセス
+      const mcpResponse = await page.request.post(`${baseUrl}/mcp`, {
+        headers: {
+          'Authorization': `Bearer ${tokenData.accessToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream'
+        },
+        data: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/list',
+          params: {}
+        })
+      });
+      
+      // 正しいresourcesパラメータで作成されたトークンはリソース検証をパス
+      expect(mcpResponse.status()).toBe(200);
+      
+      const mcpResponseText = await mcpResponse.text();
+      expect(mcpResponseText).toContain('result');
+      expect(mcpResponseText).toContain('tools');
+      
+      // 作成したトークンをクリーンアップ
+      await page.request.delete(`${baseUrlAuthlete}/api/${serviceId}/auth/token/delete/${tokenData.accessToken}`, {
+        headers: {
+          'Authorization': `Bearer ${serviceAccessToken}`
+        }
+      });
+    });
   });
 });

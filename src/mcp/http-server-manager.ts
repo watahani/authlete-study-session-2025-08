@@ -12,13 +12,15 @@ import {
   cancelReservationToolSchema,
   getUserReservationsToolSchema
 } from './tools/types/tool-schemas.js';
-import { ToolResult, UserContext } from './types/mcp-types.js';
+import { ToolResult } from './types/mcp-types.js';
 import { TicketTools } from './tools/ticket-tools.js';
 import { mcpLogger } from '../utils/logger.js';
+import { AuthenticatedRequest } from '../oauth/middleware/oauth-middleware.js';
 
 export class MCPServerManager {
   private mcpServer: Server | null = null;
   private mcpTransport: StreamableHTTPServerTransport | null = null;
+  private currentOAuthInfo: AuthenticatedRequest['oauth'] | undefined;
 
   async initialize(): Promise<void> {
     // MCP サーバー作成
@@ -85,23 +87,78 @@ export class MCPServerManager {
   }
 
   private async handleToolCall(name: string, args: any): Promise<ToolResult> {
-    // TODO: ユーザーコンテキストの取得を実装
-    const userContext: UserContext | undefined = undefined;
+    mcpLogger.info(`MCPServerManager Tool called: ${name}`, { 
+      args, 
+      hasOauthInfo: !!this.currentOAuthInfo,
+      subject: this.currentOAuthInfo?.subject,
+      scopes: this.currentOAuthInfo?.scopes 
+    });
 
     switch (name) {
       case "list_tickets":
-        return TicketTools.listTickets(args, userContext);
+        return this.handleListTickets(args);
       case "search_tickets":
-        return TicketTools.searchTickets(args, userContext);
+        return this.handleSearchTickets(args);
       case "reserve_ticket":
-        return TicketTools.reserveTicket(args, userContext);
+        return this.handleReserveTicket(args);
       case "cancel_reservation":
-        return TicketTools.cancelReservation(args, userContext);
+        return this.handleCancelReservation(args);
       case "get_user_reservations":
-        return TicketTools.getUserReservations(args, userContext);
+        return this.handleGetUserReservations(args);
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
+  }
+
+  private async handleListTickets(args: any): Promise<ToolResult> {
+    return TicketTools.listTickets(args, this.currentOAuthInfo);
+  }
+
+  private async handleSearchTickets(args: any): Promise<ToolResult> {
+    return TicketTools.searchTickets(args, this.currentOAuthInfo);
+  }
+
+  private async handleReserveTicket(args: any): Promise<ToolResult> {
+    // 書き込みスコープの確認
+    if (!this.currentOAuthInfo?.scopes.includes('mcp:tickets:write')) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Unauthorized"
+          }
+        ],
+        isError: true
+      };
+    }
+
+    return TicketTools.reserveTicket(args, this.currentOAuthInfo);
+  }
+
+  private async handleCancelReservation(args: any): Promise<ToolResult> {
+    // 書き込みスコープの確認
+    if (!this.currentOAuthInfo?.scopes.includes('mcp:tickets:write')) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Unauthorized"
+          }
+        ],
+        isError: true
+      };
+    }
+
+    return TicketTools.cancelReservation(args, this.currentOAuthInfo);
+  }
+
+  private async handleGetUserReservations(args: any): Promise<ToolResult> {
+    return TicketTools.getUserReservations(args, this.currentOAuthInfo);
+  }
+
+
+  setOAuthInfo(oauthInfo: AuthenticatedRequest['oauth'] | undefined): void {
+    this.currentOAuthInfo = oauthInfo;
   }
 
   getTransport(): StreamableHTTPServerTransport | null {

@@ -3,21 +3,17 @@
  */
 
 import { TicketRepository, TicketSearchOptions, ReservationOptions } from '../data/ticket-repository.js';
-import { UserRepository } from '../data/user-repository.js';
-import { ConnectionManager } from '../data/connection-manager.js';
-import { AuthService } from '../../services/AuthService.js';
-import { ToolResult, UserContext, TicketToolArguments } from '../types/mcp-types.js';
+import { ToolResult, TicketToolArguments } from '../types/mcp-types.js';
 import { Ticket, ReservationWithDetails } from '../../types/index.js';
+import { AuthenticatedRequest } from '../../oauth/middleware/oauth-middleware.js';
 
 export class TicketTools {
   private static ticketRepository = new TicketRepository();
-  private static userRepository = new UserRepository();
-  private static connectionManager = ConnectionManager.getInstance();
   
   /**
    * チケット一覧取得ツール
    */
-  static async listTickets(args: TicketToolArguments, userContext?: UserContext): Promise<ToolResult> {
+  static async listTickets(args: TicketToolArguments, _oauthInfo?: AuthenticatedRequest['oauth']): Promise<ToolResult> {
     try {
       const limit = args.limit || 10;
       const tickets = await this.ticketRepository.getAllTickets();
@@ -54,7 +50,7 @@ export class TicketTools {
   /**
    * チケット検索ツール
    */
-  static async searchTickets(args: TicketToolArguments, userContext?: UserContext): Promise<ToolResult> {
+  static async searchTickets(args: TicketToolArguments, _oauthInfo?: AuthenticatedRequest['oauth']): Promise<ToolResult> {
     try {
       const searchOptions: TicketSearchOptions = {
         maxPrice: args.max_price,
@@ -120,14 +116,14 @@ export class TicketTools {
   /**
    * チケット予約ツール
    */
-  static async reserveTicket(args: TicketToolArguments, userContext?: UserContext): Promise<ToolResult> {
+  static async reserveTicket(args: TicketToolArguments, oauthInfo?: AuthenticatedRequest['oauth']): Promise<ToolResult> {
     try {
-      if (!userContext) {
+      if (!oauthInfo?.subject) {
         return {
           content: [
             {
               type: "text",
-              text: "チケット予約にはユーザー認証が必要です。"
+              text: "Unauthorized"
             }
           ],
           isError: true
@@ -161,8 +157,21 @@ export class TicketTools {
       }
 
       // 予約実行
+      const userId = parseInt(oauthInfo.subject);
+      if (isNaN(userId)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Unauthorized"
+            }
+          ],
+          isError: true
+        };
+      }
+
       const reservationOptions: ReservationOptions = {
-        userId: userContext.id,
+        userId: userId,
         ticketId: args.ticket_id,
         seats: args.seats
       };
@@ -198,14 +207,14 @@ export class TicketTools {
   /**
    * 予約キャンセルツール
    */
-  static async cancelReservation(args: TicketToolArguments, userContext?: UserContext): Promise<ToolResult> {
+  static async cancelReservation(args: TicketToolArguments, oauthInfo?: AuthenticatedRequest['oauth']): Promise<ToolResult> {
     try {
-      if (!userContext) {
+      if (!oauthInfo?.subject) {
         return {
           content: [
             {
               type: "text",
-              text: "予約キャンセルにはユーザー認証が必要です。"
+              text: "Unauthorized"
             }
           ],
           isError: true
@@ -224,7 +233,20 @@ export class TicketTools {
         };
       }
 
-      await this.ticketRepository.cancelReservation(args.reservation_id, userContext.id);
+      const userId = parseInt(oauthInfo.subject);
+      if (isNaN(userId)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Unauthorized"
+            }
+          ],
+          isError: true
+        };
+      }
+
+      await this.ticketRepository.cancelReservation(args.reservation_id, userId);
 
       return {
         content: [
@@ -251,21 +273,34 @@ export class TicketTools {
   /**
    * ユーザー予約履歴取得ツール
    */
-  static async getUserReservations(args: TicketToolArguments, userContext?: UserContext): Promise<ToolResult> {
+  static async getUserReservations(_args: TicketToolArguments, oauthInfo?: AuthenticatedRequest['oauth']): Promise<ToolResult> {
     try {
-      if (!userContext) {
+      if (!oauthInfo?.subject) {
         return {
           content: [
             {
               type: "text",
-              text: "予約履歴の取得にはユーザー認証が必要です。"
+              text: "Unauthorized"
             }
           ],
           isError: true
         };
       }
 
-      const reservations = await this.ticketRepository.getUserReservations(userContext.id);
+      const userId = parseInt(oauthInfo.subject);
+      if (isNaN(userId)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Unauthorized"
+            }
+          ],
+          isError: true
+        };
+      }
+
+      const reservations = await this.ticketRepository.getUserReservations(userId);
 
       if (reservations.length === 0) {
         return {
@@ -289,7 +324,7 @@ export class TicketTools {
         content: [
           {
             type: "text",
-            text: `${userContext.username} さんの予約履歴 (${reservations.length}件):\n\n${reservationList}`
+            text: `ユーザー ${oauthInfo.subject} の予約履歴 (${reservations.length}件):\n\n${reservationList}`
           }
         ]
       };

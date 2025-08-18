@@ -69,6 +69,9 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
 
       const introspectionResponse = await client.introspect(introspectionRequest);
       
+      // デバッグログ: Introspection レスポンスを出力
+      oauthLogger.debug('Authlete introspection response', introspectionResponse);
+      
       // baseUrl を事前に定義
       const baseUrl = `${req.protocol}://${req.get('host')}`;
 
@@ -113,13 +116,34 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
           });
 
         case 'OK':
+          // アクセストークンのリソース検証
+          const mcpServerUrl = `${baseUrl}/mcp`;
+          if (!introspectionResponse.accessTokenResources || 
+              !introspectionResponse.accessTokenResources.includes(mcpServerUrl)) {
+            oauthLogger.warn('Access token does not include MCP server resource', {
+              requiredResource: mcpServerUrl,
+              accessTokenResources: introspectionResponse.accessTokenResources || []
+            });
+            
+            const wwwAuthResource = `Bearer realm="${baseUrl}", ` +
+                                  `error="invalid_token", ` +
+                                  `error_description="Access token does not include required resource", ` +
+                                  `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`;
+            
+            res.set('WWW-Authenticate', wwwAuthResource);
+            return res.status(401).json({
+              error: 'invalid_token',
+              error_description: 'Access token does not include required resource'
+            });
+          }
+          
           // トークンが有効 - リクエストにOAuth情報を追加
           req.oauth = {
             token: token,
             subject: introspectionResponse.subject || '',
             clientId: introspectionResponse.clientId?.toString() || '',
             scopes: introspectionResponse.scopes || [],
-            username: introspectionResponse.subject,
+            username: introspectionResponse.subject, // subject をユーザー識別子として使用
             exp: introspectionResponse.expiresAt
           };
           

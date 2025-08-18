@@ -54,7 +54,7 @@ export class Logger {
   /**
    * 環境変数からログレベルをパース
    */
-  private parseLogLevel(level: string): LogLevel {
+  public parseLogLevel(level: string): LogLevel {
     switch (level.toLowerCase()) {
       case 'error': return LogLevel.ERROR;
       case 'warn': return LogLevel.WARN;
