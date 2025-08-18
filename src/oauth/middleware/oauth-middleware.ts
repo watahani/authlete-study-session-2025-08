@@ -69,6 +69,9 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
 
       const introspectionResponse = await client.introspect(introspectionRequest);
       
+      // デバッグログ: Introspection レスポンスを出力
+      oauthLogger.debug('Authlete introspection response', introspectionResponse);
+      
       // baseUrl を事前に定義
       const baseUrl = `${req.protocol}://${req.get('host')}`;
 
@@ -119,7 +122,7 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
             subject: introspectionResponse.subject || '',
             clientId: introspectionResponse.clientId?.toString() || '',
             scopes: introspectionResponse.scopes || [],
-            username: introspectionResponse.subject,
+            username: introspectionResponse.subject, // subject をユーザー識別子として使用
             exp: introspectionResponse.expiresAt
           };
           

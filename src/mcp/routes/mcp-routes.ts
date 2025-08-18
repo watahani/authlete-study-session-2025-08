@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction, Router } from 'express';
 import { MCPServerManager } from '../http-server-manager.js';
+import { AuthenticatedRequest } from '../../oauth/middleware/oauth-middleware.js';
 import { mcpLogger } from '../../utils/logger.js';
 
 export interface MCPRoutesOptions {
@@ -36,6 +37,15 @@ export function createMCPRoutes(options: MCPRoutesOptions): Router {
     },
     async (req: Request, res: Response) => {
       try {
+        mcpLogger.debug('MCP route handler called', {
+          hasOAuth: !!(req as AuthenticatedRequest).oauth,
+          subject: (req as AuthenticatedRequest).oauth?.subject,
+          scopes: (req as AuthenticatedRequest).oauth?.scopes
+        });
+
+        // OAuth 情報を MCPServerManager に設定
+        mcpServerManager.setOAuthInfo((req as AuthenticatedRequest).oauth);
+
         const transport = mcpServerManager.getTransport();
         if (!transport) {
           return res.status(503).json({

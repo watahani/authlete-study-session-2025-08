@@ -19,11 +19,6 @@ export interface ToolResult {
   isError?: boolean;
 }
 
-export interface UserContext {
-  id: number;
-  username: string;
-  roles: string[];
-}
 
 export interface TicketToolArguments {
   ticket_id?: number;

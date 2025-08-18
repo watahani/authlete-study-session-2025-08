@@ -49,7 +49,7 @@ export class DCRController {
       // Authlete DCR API を呼び出し
       const response = await this.authleteClient.makeRequest('/client/registration', {
         json: JSON.stringify(enhancedClientMetadata)
-      });
+      }) as any;
 
       oauthLogger.debug('Authlete DCR registration response', {
         action: response.action,
@@ -139,7 +139,7 @@ export class DCRController {
       const response = await this.authleteClient.makeRequest('/client/registration/get', {
         token: registrationAccessToken,
         clientId: clientId
-      });
+      }) as any;
 
       oauthLogger.debug('Authlete DCR get response', {
         action: response.action,
@@ -248,7 +248,7 @@ export class DCRController {
         token: registrationAccessToken,
         clientId: clientId,
         json: JSON.stringify(enhancedClientMetadata)
-      });
+      }) as any;
 
       oauthLogger.debug('Authlete DCR update response', {
         action: response.action,
@@ -337,7 +337,7 @@ export class DCRController {
       const response = await this.authleteClient.makeRequest('/client/registration/delete', {
         token: registrationAccessToken,
         clientId: clientId
-      });
+      }) as any;
 
       oauthLogger.debug('Authlete DCR delete response', {
         action: response.action,
