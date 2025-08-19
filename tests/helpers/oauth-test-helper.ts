@@ -1,13 +1,28 @@
 /**
- * OAuth テスト用ヘルパークラス
+ * OAuth テスト用統合ヘルパークラス
+ * 既存のOAuth token flowテストから処理を統合
  */
 
-import { Page, expect } from '@playwright/test';
+import { Page } from '@playwright/test';
+import crypto from 'crypto';
 import { oauthLogger } from '../../src/utils/logger.js';
 
-export interface AuthorizationDetailsOptions {
-  authorizationDetails: 'scope-only' | 'custom';
+// Helper function to parse Server-Sent Events response
+function parseSSEResponse(text: string): any {
+  const eventData = text.split('\n').find(line => line.startsWith('data:'))?.substring(5).trim();
+  return eventData ? JSON.parse(eventData) : null;
+}
+
+export interface AuthorizationCodeFlowOptions {
+  scope: string;
+  authorizationDetails?: 'scope-only' | 'custom';
   maxAmount?: number;
+}
+
+export interface OAuthFlowResult {
+  accessToken: string;
+  clientInfo: { client_id: string };
+  codeVerifier: string;
 }
 
 export class OAuthTestHelper {
@@ -15,11 +30,10 @@ export class OAuthTestHelper {
   
   // MCP Test Client (authorization details対応済み, Public Client)
   private readonly MCP_CLIENT_ID = '3006291287';
-  
+  private readonly baseUrl = process.env.BASE_URL || 'https://localhost:3443';
+  private readonly redirectUri = `${this.baseUrl}/oauth/callback`;
+
   async setupTest(page: Page) {
-    // ベース URL を設定
-    const baseUrl = process.env.BASE_URL || 'https://localhost:3443';
-    
     // ブラウザのコンソールエラーとリクエストエラーを追跡
     page.on('console', msg => {
       if (msg.type() === 'error') {
@@ -32,94 +46,174 @@ export class OAuthTestHelper {
     });
 
     // 認証用のユーザーでログイン (既存のテストユーザーを使用)
-    await page.goto(`${baseUrl}/auth/login`);
-    await page.fill('input[name="username"]', 'john_doe');
-    await page.fill('input[name="password"]', 'password123');
-    await page.click('button[type="submit"]');
+    await page.goto(`${this.baseUrl}/auth/login`);
+    await page.fill('input[name="username"]', 'testuser');
+    await page.fill('input[name="password"]', 'testpass');
     
-    // ログイン確認
-    await page.waitForURL('**/dashboard');
+    // フォーム送信とJSONレスポンスの確認
+    const [response] = await Promise.all([
+      page.waitForResponse(resp => resp.url().includes('/auth/login') && resp.request().method() === 'POST'),
+      page.click('button[type="submit"]')
+    ]);
+    
+    // ログイン成功を確認
+    if (!response.ok()) {
+      throw new Error(`ログインに失敗しました: ${response.status()}`);
+    }
+    
+    const responseData = await response.json();
+    if (!responseData.user) {
+      throw new Error('ログインレスポンスにユーザー情報が含まれていません');
+    }
+    
+    oauthLogger.debug('Login successful in test setup', { user: responseData.user });
   }
 
-  async performOAuthFlow(page: Page, options: AuthorizationDetailsOptions) {
-    const baseUrl = process.env.BASE_URL || 'https://localhost:3443';
+  async performAuthorizationCodeFlow(page: Page, options: AuthorizationCodeFlowOptions): Promise<OAuthFlowResult> {
+    // PKCEパラメータを生成
+    const codeVerifier = this.generateCodeVerifier();
+    const codeChallenge = this.generateCodeChallenge(codeVerifier);
     
-    // MCP Test Clientを使用（authorization details対応済み, Public Client）
-    const clientInfo = {
-      client_id: this.MCP_CLIENT_ID
-    };
+    // Authorization code取得用の変数とイベントリスナー
+    let authorizationCode: string | null = null;
+    let state: string | null = null;
+    
+    // Responseイベントを監視してLocationヘッダーからcodeを取得
+    page.on('response', (response) => {
+      if (response.status() === 302) {
+        const location = response.headers().location;
+        if (response.url().includes('/oauth/authorize/decision')) {
+          if (location && location.includes('code=')) {
+            const locationUrl = new URL(location);
+            authorizationCode = locationUrl.searchParams.get('code');
+            state = locationUrl.searchParams.get('state');
+            oauthLogger.debug('Authorization code extracted from 302 redirect', {
+              codePrefix: authorizationCode?.substring(0, 10) + '...',
+              state
+            });
+          }
+        }
+      }
+    });
     
     // 認可エンドポイントに移動
-    const authUrl = new URL(`${baseUrl}/oauth/authorize`);
+    const authUrl = new URL(`${this.baseUrl}/oauth/authorize`);
     authUrl.searchParams.append('response_type', 'code');
-    authUrl.searchParams.append('client_id', clientInfo.client_id);
-    authUrl.searchParams.append('redirect_uri', `${baseUrl}/oauth/callback`);
-    authUrl.searchParams.append('scope', 'mcp');
-    authUrl.searchParams.append('resource', `${baseUrl}/mcp`);
+    authUrl.searchParams.append('client_id', this.MCP_CLIENT_ID);
+    authUrl.searchParams.append('redirect_uri', this.redirectUri);
+    authUrl.searchParams.append('scope', options.scope);
+    authUrl.searchParams.append('resource', `${this.baseUrl}/mcp`);
+    authUrl.searchParams.append('code_challenge', codeChallenge);
+    authUrl.searchParams.append('code_challenge_method', 'S256');
+    authUrl.searchParams.append('state', 'test_state_' + Date.now());
     
     await page.goto(authUrl.toString());
     
-    // 認可画面での選択
-    if (options.authorizationDetails === 'scope-only') {
-      // 標準権限を選択
-      await page.check('#scope-only');
-    } else {
-      // カスタム制限を選択
-      await page.check('#custom-limits');
+    // ログイン後の遷移を待機（既にログイン済みなのでconsentページに直接遷移）
+    await page.waitForTimeout(3000);
+    
+    let currentUrl = page.url();
+    let retries = 0;
+    while (currentUrl.includes('/auth/login') && retries < 5) {
+      oauthLogger.info(`Still on login page, waiting... (retry ${retries + 1})`);
+      await page.waitForTimeout(2000);
+      currentUrl = page.url();
+      retries++;
+    }
+    
+    // コンセントページでの処理
+    if (currentUrl.includes('/oauth/authorize/consent')) {
+      const bodyText = await page.textContent('body');
+      oauthLogger.info('Consent page body:', bodyText);
       
-      if (options.maxAmount !== undefined) {
-        await page.fill('#max-amount', options.maxAmount.toString());
+      // Authorization Detailsが表示されているかチェック
+      if (bodyText?.includes('詳細なアクセス権限設定') && options.authorizationDetails) {
+        // 認可画面での選択
+        if (options.authorizationDetails === 'scope-only') {
+          // 標準権限を選択
+          await page.check('#scope-only');
+        } else {
+          // カスタム制限を選択
+          await page.check('#custom-limits');
+          
+          if (options.maxAmount !== undefined) {
+            await page.fill('#max-amount', options.maxAmount.toString());
+          }
+        }
+      } else if (options.authorizationDetails) {
+        oauthLogger.warn('Authorization Details UI not found on consent page');
+      }
+      
+      // 承認ボタンをクリック
+      try {
+        const approvalButton = await page.locator('button.approve').first();
+        if (await approvalButton.isVisible()) {
+          await approvalButton.click();
+          
+          // 302リダイレクトレスポンスを待機（認可コードが取得されるまで）
+          let waitAttempts = 0;
+          while (!authorizationCode && waitAttempts < 10) {
+            await page.waitForTimeout(500);
+            waitAttempts++;
+          }
+        }
+      } catch (error) {
+        oauthLogger.error('Button click failed:', error);
       }
     }
     
-    // 許可ボタンをクリック
-    await page.click('button.approve');
-    
-    // コールバックページで認可コードを取得
-    await page.waitForURL('**/oauth/callback*');
-    const callbackUrl = new URL(page.url());
-    const code = callbackUrl.searchParams.get('code');
-    
-    if (!code) {
+    // 認可コードの最終確認
+    if (!authorizationCode) {
+      oauthLogger.error('Authorization code was not obtained');
+      oauthLogger.error('Current page URL:', page.url());
+      const bodyText = await page.textContent('body');
+      oauthLogger.debug('Page body content:', bodyText?.substring(0, 500) + '...');
       throw new Error('認可コードが取得できませんでした');
     }
     
-    // アクセストークンを取得（Public Clientなのでclient_secretなし）
-    const tokenResponse = await fetch(`${baseUrl}/oauth/token`, {
-      method: 'POST',
+    // アクセストークンを取得（Public Clientなのでclient_secretなし、PKCE使用）
+    const tokenResponse = await page.request.post(`${this.baseUrl}/oauth/token`, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: new URLSearchParams({
+      data: new URLSearchParams({
         grant_type: 'authorization_code',
-        code: code,
-        redirect_uri: `${baseUrl}/oauth/callback`,
-        client_id: clientInfo.client_id
+        code: authorizationCode,
+        redirect_uri: this.redirectUri,
+        client_id: this.MCP_CLIENT_ID,
+        code_verifier: codeVerifier
       }).toString()
     });
     
-    if (!tokenResponse.ok) {
+    if (!tokenResponse.ok()) {
       const errorText = await tokenResponse.text();
-      throw new Error(`トークン取得エラー: ${tokenResponse.status} - ${errorText}`);
+      throw new Error(`トークン取得エラー: ${tokenResponse.status()} - ${errorText}`);
     }
     
     const tokenData = await tokenResponse.json();
     
-    oauthLogger.debug('OAuth flow completed', {
+    oauthLogger.debug('Authorization code flow completed', {
       accessToken: !!tokenData.access_token,
+      scope: options.scope,
       authorizationDetails: options.authorizationDetails
     });
     
     return {
       accessToken: tokenData.access_token,
-      clientInfo: clientInfo
+      clientInfo: { client_id: this.MCP_CLIENT_ID },
+      codeVerifier: codeVerifier
     };
   }
 
+  private generateCodeVerifier(): string {
+    return crypto.randomBytes(32).toString('base64url');
+  }
 
-  async callMCPEndpoint(accessToken: string, tool: string, args: any) {
-    const baseUrl = process.env.BASE_URL || 'https://localhost:3443';
-    
+  private generateCodeChallenge(codeVerifier: string): string {
+    return crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+  }
+
+  async callMCPEndpoint(page: Page, accessToken: string, tool: string, args: any) {
     const mcpRequest = {
       jsonrpc: '2.0',
       id: Date.now(),
@@ -130,25 +224,32 @@ export class OAuthTestHelper {
       }
     };
     
-    return await fetch(`${baseUrl}/mcp`, {
-      method: 'POST',
+    const response = await page.request.post(`${this.baseUrl}/mcp`, {
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream',
         'Authorization': `Bearer ${accessToken}`
       },
-      body: JSON.stringify(mcpRequest)
+      data: JSON.stringify(mcpRequest)
     });
+    
+    // MCPレスポンスはSSE形式なので、適切にパースして返す
+    return {
+      status: () => response.status(),
+      json: async () => {
+        const text = await response.text();
+        return parseSSEResponse(text);
+      }
+    };
   }
 
   async cleanup() {
     // MCP Test Clientを使用するのでクリーンアップは不要
     // DCRで作成したクライアントがある場合のみクリーンアップ
     if (this.createdClients.length > 0) {
-      const baseUrl = process.env.BASE_URL || 'https://localhost:3443';
-      
       for (const clientId of this.createdClients) {
         try {
-          await fetch(`${baseUrl}/oauth/register/${clientId}`, {
+          await fetch(`${this.baseUrl}/oauth/register/${clientId}`, {
             method: 'DELETE',
             headers: {
               'Authorization': `Bearer ${process.env.DCR_ACCESS_TOKEN || 'test-dcr-token'}`
