@@ -214,15 +214,28 @@ export class OAuthTestHelper {
   }
 
   async callMCPEndpoint(page: Page, accessToken: string, tool: string, args: any) {
-    const mcpRequest = {
-      jsonrpc: '2.0',
-      id: Date.now(),
-      method: 'tools/call',
-      params: {
-        name: tool,
-        arguments: args
-      }
-    };
+    let mcpRequest: any;
+    
+    if (tool === 'tools/list') {
+      // tools/listの場合は特別な形式
+      mcpRequest = {
+        jsonrpc: '2.0',
+        id: Date.now(),
+        method: 'tools/list',
+        params: {}
+      };
+    } else {
+      // 通常のツール呼び出し
+      mcpRequest = {
+        jsonrpc: '2.0',
+        id: Date.now(),
+        method: 'tools/call',
+        params: {
+          name: tool,
+          arguments: args
+        }
+      };
+    }
     
     const response = await page.request.post(`${this.baseUrl}/mcp`, {
       headers: {
