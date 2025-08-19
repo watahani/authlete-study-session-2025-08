@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 // Helper function to get base URL from test context
 function getBaseURL(page: any): string {
-  return page.context()._options.baseURL || 'http://localhost:3000';
+  return page.context()._options.baseURL || 'https://localhost:3443';
 }
 
 test.describe('予約機能のテスト', () => {
