@@ -24,6 +24,15 @@ export class TokenController {
 
       const response = await this.authleteClient.token(tokenRequest);
 
+      // デバッグログ: authorizationDetailsの確認
+      if (response.authorizationDetails) {
+        oauthLogger.debug('Authorization details in token response', {
+          authorizationDetails: response.authorizationDetails,
+          subject: response.subject,
+          clientId: response.clientId
+        });
+      }
+
       switch (response.action) {
         case 'INTERNAL_SERVER_ERROR':
           res.status(500).json({

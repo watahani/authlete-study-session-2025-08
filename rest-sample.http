@@ -1,0 +1,121 @@
+# Authlete REST API テストサンプル
+# .env ファイルの環境変数を使用
+
+### Variables
+@authleteBaseUrl = {{$dotenv AUTHLETE_BASE_URL}}
+@serviceAccessToken = {{$dotenv AUTHLETE_SERVICE_ACCESS_TOKEN}}
+@serviceId = {{$dotenv AUTHLETE_SERVICE_ID}}
+@organizationAccessToken = {{$dotenv ORGANIZATION_ACCESS_TOKEN}}
+@clientId = {{$dotenv MCP_CLIENT_ID}}
+@redirectUri = https://localhost:3443/oauth/callback
+
+### 1. Authorization Request (Authlete /api/{serviceId}/auth/authorization)
+# URLエンコード済みのauthorization_details:
+# [{"type":"ticket-reservation","actions":["book","cancel"],"otherFields":"{\"maxAmount\":10000,\"currency\":\"JPY\"}"}]
+POST {{authleteBaseUrl}}/api/{{serviceId}}/auth/authorization
+Authorization: Bearer {{serviceAccessToken}}
+Content-Type: application/json
+
+{
+  "parameters": "response_type=code&client_id={{clientId}}&redirect_uri={{redirectUri}}&scope=mcp&state=test123&authorization_details=%5B%7B%22type%22%3A%22ticket-reservation%22%2C%22actions%22%3A%5B%22book%22%2C%22cancel%22%5D%2C%22otherFields%22%3A%22%7B%5C%22maxAmount%5C%22%3A10000%2C%5C%22currency%5C%22%3A%5C%22JPY%5C%22%7D%22%7D%5D"
+}
+
+###
+
+### 2. Authorization Issue Request (Authlete /api/{serviceId}/auth/authorization/issue) 
+# 実際のコードではこのように使用される
+POST {{authleteBaseUrl}}/api/{{serviceId}}/auth/authorization/issue
+Authorization: Bearer {{serviceAccessToken}}
+Content-Type: application/json
+
+{
+  "ticket": "your_ticket_here",
+  "subject": "1",
+  "authorizationDetails": {
+    "elements": [
+      {
+        "type": "ticket-reservation",
+        "actions": ["book", "cancel"],
+        "otherFields": "{\"maxAmount\":10000,\"currency\":\"JPY\"}"
+      }
+    ]
+  }
+}
+
+###
+
+### 3. Token Request (Authlete /api/{serviceId}/auth/token) - Authorization Code Grant
+POST {{authleteBaseUrl}}/api/{{serviceId}}/auth/token
+Authorization: Bearer {{serviceAccessToken}}
+Content-Type: application/json
+
+{
+  "parameters": "grant_type=authorization_code&code=your_authorization_code&redirect_uri={{redirectUri}}&client_id={{clientId}}",
+  "clientId": "{{clientId}}"
+}
+
+###
+
+### 4. Introspection Request (Authlete /api/{serviceId}/auth/introspection)
+POST {{authleteBaseUrl}}/api/{{serviceId}}/auth/introspection
+Authorization: Bearer {{serviceAccessToken}}
+Content-Type: application/json
+
+{
+  "token": "your_access_token"
+}
+
+###
+
+### 5. Get Service Configuration (確認用)
+GET {{authleteBaseUrl}}/api/service/get/{{serviceId}}
+Authorization: Bearer {{serviceAccessToken}}
+
+###
+
+### 6. Get Client Details (authorizationDetailsTypes確認用)
+GET {{authleteBaseUrl}}/api/{{serviceId}}/client/get/{{clientId}}
+Authorization: Bearer {{serviceAccessToken}}
+
+###
+
+### Authorization Details デコード用参考
+# URL エンコードされた authorization_details パラメータの元の値:
+# [{"type":"ticket-reservation","actions":["book","cancel"],"otherFields":"{\"maxAmount\":10000,\"currency\":\"JPY\"}"}]
+#
+# URL エンコード後:
+# %5B%7B%22type%22%3A%22ticket-reservation%22%2C%22actions%22%3A%5B%22book%22%2C%22cancel%22%5D%2C%22otherFields%22%3A%22%7B%5C%22maxAmount%5C%22%3A10000%2C%5C%22currency%5C%22%3A%5C%22JPY%5C%22%7D%22%7D%5D
+
+### ローカルサーバーでのテスト用 (開発環境)
+@localBaseUrl = https://localhost:3443/oauth
+
+### Local Authorization Request - ブラウザでアクセスしてauthorization detailsサポートを確認
+GET {{localBaseUrl}}/authorize?response_type=code&client_id={{clientId}}&redirect_uri={{redirectUri}}&scope=mcp&state=test123&authorization_details=%5B%7B%22type%22%3A%22ticket-reservation%22%2C%22actions%22%3A%5B%22book%22%2C%22cancel%22%5D%2C%22otherFields%22%3A%22%7B%5C%22maxAmount%5C%22%3A10000%2C%5C%22currency%5C%22%3A%5C%22JPY%5C%22%7D%22%7D%5D
+
+###
+
+### Local Token Request
+POST {{localBaseUrl}}/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&code=your_authorization_code&redirect_uri={{redirectUri}}&client_id={{clientId}}&client_secret=your_client_secret
+
+###
+
+### Local Introspection Request
+POST {{localBaseUrl}}/introspect  
+Content-Type: application/x-www-form-urlencoded
+
+token=your_access_token
+
+###
+
+### クライアントの確認 - Client Details APIを使ってauthorizationDetailsTypesを確認
+GET {{authleteBaseUrl}}/api/{{serviceId}}/client/get/{{clientId}}
+Authorization: Bearer {{serviceAccessToken}}
+
+###
+
+### サービス設定の確認
+GET {{authleteBaseUrl}}/api/service/get/{{serviceId}}  
+Authorization: Bearer {{serviceAccessToken}}

@@ -22,6 +22,7 @@ export interface AuthorizationResponse {
     clientName?: string;
     logoUri?: string;
     number?: number;
+    authorizationDetailsTypes?: string[];
   };
   display?: string;
   maxAge?: number;
@@ -50,7 +51,7 @@ export interface AuthorizationResponse {
   idTokenClaims?: string;
   userInfoClaims?: string;
   resources?: string[];
-  authorizationDetails?: string;
+  authorizationDetails?: { elements: AuthorizationDetail[] };
   purpose?: string;
   responseContent?: string;
   ticket?: string;
@@ -110,7 +111,7 @@ export interface TokenResponse {
   jwtAccessToken?: string;
   resources?: string[];
   accessTokenResources?: string[];
-  authorizationDetails?: string;
+  authorizationDetails?: { elements: AuthorizationDetail[] };
   serviceAttributes?: Array<{ key: string; value: string }>;
   clientAttributes?: Array<{ key: string; value: string }>;
   clientAuthMethod?: string;
@@ -202,6 +203,7 @@ export interface IntrospectionResponse {
   clientEntityId?: string;
   clientEntityIdUsed?: boolean;
   accessTokenResources?: string[];
+  authorizationDetails?: { elements: AuthorizationDetail[] };
 }
 
 export interface AuthleteError extends Error {
@@ -210,4 +212,24 @@ export interface AuthleteError extends Error {
     resultCode?: string;
     resultMessage?: string;
   };
+}
+
+// Authorization Details Types
+export interface AuthorizationDetail {
+  type: string;
+  locations?: string[];
+  actions?: string[];
+  datatypes?: string[];
+  identifier?: string;
+  privileges?: string[];
+  // Authleteスキーマ準拠：カスタムフィールドはotherFieldsにJSON文字列として格納
+  otherFields?: string;
+}
+
+export interface AuthorizationDetailsRequest {
+  authorizationDetails?: AuthorizationDetail[];
+}
+
+export interface AuthorizationDetailsResponse {
+  authorizationDetails?: AuthorizationDetail[];
 }
