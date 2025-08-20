@@ -65,11 +65,11 @@ npx playwright test tests/oauth-middleware.spec.ts --config=playwright-oauth.con
 npx playwright test tests/mcp-server.spec.ts
 ```
 
-### 専用コマンドドキュメント
+### Claude Code スラッシュコマンド
 
-プロジェクトには開発効率化のための専用コマンドドキュメントが用意されています：
+プロジェクトには Claude Code で利用できる専用スラッシュコマンドが用意されています：
 
-#### テスト実行コマンド集
+#### /test-commands
 **ファイル**: `.claude/commands/test-commands.md`
 
 - OAuth、MCP、Ticket Service の3種類のテスト分類
@@ -77,15 +77,12 @@ npx playwright test tests/mcp-server.spec.ts
 - デバッグ・トラブルシューティング方法
 - 環境変数設定ガイド
 
-```bash
-# 推奨テスト実行
-npm run test:oauth
-
-# 手動サーバー制御でのテスト
-LOG_LEVEL=debug npm run dev
+```
+# Claude Code で実行
+/test-commands
 ```
 
-#### Authlete セットアップコマンド
+#### /authlete-setup
 **ファイル**: `.claude/commands/authlete-setup.md`
 
 - Authlete サービス・クライアントの自動セットアップ
@@ -93,9 +90,9 @@ LOG_LEVEL=debug npm run dev
 - 環境変数の自動生成
 - 設定値の区別（SERVICE_API_KEY vs AUTHLETE_SERVICE_ACCESS_TOKEN）
 
-```bash
-# サービス・クライアント一括セットアップ例
-mcp__authlete__create_service_detailed "$(cat examples/authlete-service-config.json)"
+```
+# Claude Code で実行
+/authlete-setup
 ```
 
 ## デバッグ方法
