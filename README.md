@@ -66,6 +66,38 @@ Claude Code を使用している場合、自動セットアップコマンド�
 
 コマンド実行後は、Authleteコンソールからサービスアクセストークンを取得して`.env`ファイルに設定するだけで完了です。
 
+スラッシュコマンドの実行には Authlete MCP サーバーのインストールが必要です。
+
+#### Authlete MCP サーバーの Claude Code への追加
+
+Claude Code で Authlete MCP サーバーを使用するには、以下のようにプロジェクトまたはグローバルに MCP サーバーを追加します。
+
+**プロジェクトローカルに追加:**
+```bash
+claude mcp add authlete --scope local -- docker run --rm -i \
+  -e ORGANIZATION_ACCESS_TOKEN=YOUR_ORGANIZATION_ACCESS_TOKEN \
+  -e ORGANIZATION_ID=YOUR_ORGANIZATION_ID \
+  -e AUTHLETE_API_URL=https://jp.authlete.com \
+  -e AUTHLETE_API_SERVER_ID=53285 \
+  -e LOG_LEVEL=INFO \
+  ghcr.io/watahani/authlete-mcp:latest
+```
+
+**グローバルに追加:**
+```bash
+claude mcp add authlete --scope global -- docker run --rm -i \
+  -e ORGANIZATION_ACCESS_TOKEN=YOUR_ORGANIZATION_ACCESS_TOKEN \
+  -e ORGANIZATION_ID=YOUR_ORGANIZATION_ID \
+  -e AUTHLETE_API_URL=https://jp.authlete.com \
+  -e AUTHLETE_API_SERVER_ID=53285 \
+  -e LOG_LEVEL=INFO \
+  ghcr.io/watahani/authlete-mcp:latest
+```
+
+**環境変数の取得方法:**
+- `ORGANIZATION_ACCESS_TOKEN`、`ORGANIZATION_ID`、`AUTHLETE_API_SERVER_ID` の取得方法は [Authlete Terraform ドキュメント](https://www.authlete.com/developers/terraform/starting/) を参照してください
+- 日本リージョンの場合 `AUTHLETE_API_URL` は `https://jp.authlete.com` を `AUTHLETE_API_SERVER_ID` は `53285` を使用します
+
 ### 2. アプリケーションの起動
 
 ```bash
