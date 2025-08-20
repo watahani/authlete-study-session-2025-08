@@ -1,0 +1,124 @@
+{
+  "serviceName": "Ticket Service OAuth Server",
+  "issuer": "https://localhost:3443",
+  "description": "OAuth 2.1 Authorization Server for Ticket Sales Service - Study Session 2025-08",
+  "authorizationEndpoint": "https://localhost:3443/oauth/authorize",
+  "tokenEndpoint": "https://localhost:3443/oauth/token",
+  "revocationEndpoint": "https://localhost:3443/oauth/revoke",
+  "userInfoEndpoint": "https://localhost:3443/oauth/userinfo",
+  "jwksUri": "https://localhost:3443/.well-known/jwks.json",
+  "registrationEndpoint": "https://localhost:3443/oauth/register",
+  "introspectionEndpoint": "https://localhost:3443/oauth/introspect",
+  "accessTokenType": "Bearer",
+  "accessTokenDuration": 3600,
+  "refreshTokenDuration": 86400,
+  "idTokenDuration": 3600,
+  "supportedScopes": [
+    {
+      "name": "dcr",
+      "defaultEntry": false,
+      "description": "Dynamic Client Registration access"
+    },
+    {
+      "name": "mcp:tickets:read",
+      "defaultEntry": false,
+      "description": "MCP read access to ticket information via Model Context Protocol"
+    },
+    {
+      "name": "mcp:tickets:write",
+      "defaultEntry": false,
+      "description": "MCP write access to ticket operations via Model Context Protocol"
+    },
+    {
+      "name": "profile:read",
+      "defaultEntry": false,
+      "description": "Read access to user profile information"
+    }
+  ],
+  "supportedResponseTypes": [
+    "CODE"
+  ],
+  "supportedGrantTypes": [
+    "AUTHORIZATION_CODE",
+    "REFRESH_TOKEN"
+  ],
+  "supportedTokenAuthMethods": [
+    "NONE",
+    "CLIENT_SECRET_BASIC",
+    "CLIENT_SECRET_POST"
+  ],
+  "supportedDisplays": [
+    "PAGE"
+  ],
+  "supportedClaimTypes": [
+    "NORMAL"
+  ],
+  "supportedPromptValues": [
+    "NONE",
+    "LOGIN",
+    "CONSENT",
+    "SELECT_ACCOUNT",
+    "CREATE"
+  ],
+  "supportedAuthorizationDetailsTypes": [
+    "ticket-reservation"
+  ],
+  "directAuthorizationEndpointEnabled": true,
+  "directTokenEndpointEnabled": true,
+  "directRevocationEndpointEnabled": true,
+  "directUserInfoEndpointEnabled": true,
+  "directJwksEndpointEnabled": true,
+  "directIntrospectionEndpointEnabled": true,
+  "pkceRequired": true,
+  "pkceS256Required": true,
+  "clientIdAliasEnabled": true,
+  "dynamicRegistrationSupported": true,
+  "singleAccessTokenPerSubject": false,
+  "refreshTokenKept": false,
+  "refreshTokenDurationKept": false,
+  "refreshTokenDurationReset": false,
+  "errorDescriptionOmitted": false,
+  "errorUriOmitted": false,
+  "tlsClientCertificateBoundAccessTokens": false,
+  "mutualTlsValidatePkiCertChain": false,
+  "trustedRootCertificates": [],
+  "allowableClockSkew": 0,
+  "missingClientIdAllowed": false,
+  "parRequired": false,
+  "requestObjectRequired": false,
+  "traditionalRequestObjectProcessingApplied": false,
+  "claimShortcutRestrictive": false,
+  "scopeRequired": false,
+  "nbfOptional": false,
+  "issSuppressed": false,
+  "tokenExpirationLinked": false,
+  "frontChannelRequestObjectEncryptionRequired": false,
+  "requestObjectEncryptionAlgMatchRequired": false,
+  "requestObjectEncryptionEncMatchRequired": false,
+  "hsmEnabled": false,
+  "grantManagementActionRequired": false,
+  "unauthorizedOnClientConfigSupported": false,
+  "dcrScopeUsedAsRequestable": false,
+  "loopbackRedirectionUriVariable": false,
+  "requestObjectAudienceChecked": false,
+  "accessTokenForExternalAttachmentEmbedded": false,
+  "refreshTokenIdempotent": false,
+  "federationEnabled": false,
+  "tokenExchangeByIdentifiableClientsOnly": false,
+  "tokenExchangeByConfidentialClientsOnly": false,
+  "tokenExchangeByPermittedClientsOnly": false,
+  "tokenExchangeEncryptedJwtRejected": false,
+  "tokenExchangeUnsignedJwtRejected": false,
+  "jwtGrantByIdentifiableClientsOnly": false,
+  "jwtGrantEncryptedJwtRejected": false,
+  "jwtGrantUnsignedJwtRejected": false,
+  "dcrDuplicateSoftwareIdBlocked": false,
+  "rsResponseSigned": false,
+  "openidDroppedOnRefreshWithoutOfflineAccess": false,
+  "verifiableCredentialsEnabled": false,
+  "preAuthorizedGrantAnonymousAccessSupported": false,
+  "idTokenReissuable": false,
+  "dpopNonceRequired": false,
+  "clientAssertionAudRestrictedToIssuer": false,
+  "nativeSsoSupported": false
+}

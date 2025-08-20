@@ -15,10 +15,10 @@
 ## ✨ 主要機能
 
 ### 🔐 OAuth 2.1 認可サーバー
-- **RFC準拠**: OAuth 2.1 (RFC 6749), PKCE (RFC 7636), OAuth Server Metadata (RFC 8414)
+- **OAuth 2.1 準拠**: 認可コードフロー、PKCE必須 (RFC 7636)
+- **OAuth 拡張機能**: Server Metadata (RFC 8414)、Dynamic Client Registration (RFC 7591/7592)
 - **Authlete統合**: Authlete 3.0 API をバックエンドサービスとして利用
 - **セキュリティ**: HTTPS必須、Bearer Token認証、セッション管理
-- **認証フロー**: 認可コードフロー、同意画面、認可決定処理
 
 ### 🤖 MCP (Model Context Protocol) サーバー
 - **OAuth保護**: スコープベースアクセス制御 (`mcp:tickets:read`, `mcp:tickets:write`)
@@ -167,22 +167,17 @@ sequenceDiagram
 
 ### アーキテクチャの主要ポイント
 
-**OAuth 2.1 準拠機能:**
-- **Authentication Challenge**: 初回アクセス時のWWW-Authenticateヘッダーレスポンス
+**OAuth 2.1 コア機能:**
+- **認可コードフロー**: PKCE必須による安全な認証
+- **Bearer Token認証**: RFC 6750準拠のトークンベース認証
+- **HTTPS必須**: セキュアな通信の強制
+
+**OAuth 拡張機能:**
+- **Server Metadata (RFC 8414)**: `/.well-known/oauth-authorization-server`
+- **Dynamic Client Registration (RFC 7591/7592)**: 動的クライアント登録
 - **Resource Indicators (RFC 8707)**: MCPリソースへのスコープ制限
 - **Authorization Details**: 詳細権限制御（チケット予約の金額制限等）
-- **Dynamic Client Registration (DCR)**: RFC 7591/7592準拠の動的クライアント登録
-
-**Discovery & Metadata (RFC 8414):**
-- **Authorization Server Metadata**: `/.well-known/oauth-authorization-server`
 - **Protected Resource Metadata**: `/.well-known/oauth-protected-resource/mcp`
-
-**セキュリティ機能:**
-- **HTTPS必須**: OAuth 2.1準拠のセキュア通信
-- **PKCE必須**: 認可コードインターセプト攻撃対策
-- **Bearer Token Authentication**: RFC 6750準拠（Authorizationヘッダーのみ）
-- **Resource Scoping**: MCPリソースへのアクセス制限
-- **Scope-based Access Control**: `mcp:tickets:read`/`mcp:tickets:write`
 
 この統合アーキテクチャにより、Claude AIなどのMCPクライアントが、セキュアなOAuth 2.1認証を通じて、チケット販売システムのリソースに安全にアクセスできます。
 
@@ -637,23 +632,26 @@ npm run dev
    - ✅ 認可コードフロー（PKCE必須）
    - ✅ トークンエンドポイント
    - ✅ トークン検証（Introspection）
-   - ✅ Server Metadata (RFC 8414)
-   - ✅ Protected Resource Metadata
    - ✅ Bearer Token認証ミドルウェア
 
-2. **MCP サーバー**
+2. **OAuth 拡張機能**
+   - ✅ Server Metadata (RFC 8414)
+   - ✅ Dynamic Client Registration (RFC 7591/7592)
+   - ✅ Protected Resource Metadata
+
+3. **MCP サーバー**
    - ✅ チケット操作ツール（5種類）
    - ✅ OAuth統合とスコープベース制御
    - ✅ HTTP Streamable対応
    - ✅ 動的認証有効/無効切り替え
 
-3. **構造化ログシステム**
+4. **構造化ログシステム**
    - ✅ 複数ログレベル（5段階）
    - ✅ 環境変数による動的制御
    - ✅ 専用ロガー（OAuth/MCP/Authlete）
    - ✅ JSON構造化出力
 
-4. **統合Webアプリケーション**
+5. **統合Webアプリケーション**
    - ✅ HTTP/HTTPS動的切り替え
    - ✅ セッション管理
    - ✅ 認証・認可
@@ -661,7 +659,9 @@ npm run dev
 
 ### 🏆 技術的成果
 
-- **標準準拠**: OAuth 2.1, RFC 6749/6819/7636/8414, MCP仕様準拠
+- **OAuth 2.1準拠**: 認可コードフロー、PKCE必須 (RFC 7636)、Bearer Token (RFC 6750)
+- **OAuth拡張機能**: Server Metadata (RFC 8414)、DCR (RFC 7591/7592)、Resource Indicators (RFC 8707)
+- **MCP仕様準拠**: Model Context Protocol 完全対応
 - **セキュリティ**: HTTPS必須、PKCE、Bearer Token、スコープベース制御
 - **開発体験**: 構造化ログ、環境変数制御、包括的テストスイート
 - **統合性**: OAuth+MCP+Webアプリのシームレス統合
@@ -688,6 +688,18 @@ npm run dev
 - MCP クライアント SDK 提供
 - OAuth 管理ダッシュボード
 - リアルタイム通知機能
+
+## 📁 設定ファイルとドキュメント
+
+### Authlete 設定復元
+
+現在の Authlete サービス・クライアント設定を MCP で簡単に再作成できるサンプルファイルを提供しています：
+
+- **[Authlete MCP セットアップガイド](docs/authlete-setup.md)** - Claude Code への MCP 追加と設定復元手順
+- **[サービス設定サンプル](examples/authlete-service-config.json)** - OAuth 2.1 サービス設定のJSONテンプレート  
+- **[クライアント設定サンプル](examples/authlete-clients-config.json)** - Confidential/Public クライアント設定のJSONテンプレート
+
+これらのファイルを使用することで、Authlete MCP を通じて同一の設定を素早く復元できます。
 
 ---
 
