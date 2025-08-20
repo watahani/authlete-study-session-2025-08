@@ -90,8 +90,8 @@ LOG_LEVEL=debug npm run dev
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant C as MCP Client<br/>(public/native/web)
-    participant AS as Authorization Server (AS)<br/>(frontend endpoints + config API)
+    participant C as MCP Client
+    participant AS as Authorization Server (AS)
     participant AL as Authlete<br/>(backend APIs)
     participant MS as MCP Server (= Resource Server)<br/>(MCP API + Protected Resources)
 
@@ -153,9 +153,9 @@ sequenceDiagram
         AS-->>C: 302 redirect_uri?code=...&state=...
     end
 
-    %% Token Exchange
+    %% Token Request
     rect rgb(240, 255, 255)
-        Note over C,AL: Token Exchange
+        Note over C,AL: Token Request
         C->>AS: POST /oauth/token<br/>grant_type=authorization_code, code,<br/>redirect_uri, code_verifier, client_id, client_secret
         AS->>AL: POST /auth/token<br/>{parameters, clientId, clientSecret}
         AL-->>AS: 200 {action: "OK", responseContent}
@@ -169,12 +169,9 @@ sequenceDiagram
         MS->>AL: POST /auth/introspection {token, scopes: ["mcp:tickets:read"]}
         AL-->>MS: 200 {action: "OK", subject, scopes, accessTokenResources,<br/>authorizationDetails?, ...}
 
-        alt Token invalid or insufficient scope
-            MS-->>C: 401/403 with WWW-Authenticate header
-        else Token valid with resource scope
-            MS->>MS: Execute MCP tool with authorization details constraints<br/>(e.g., maxAmount limit for ticket reservations)
-            MS-->>C: 200 MCP Protocol Response
-        end
+        Note over MS,AL: Token Validation
+        MS->>MS: Verify accessTokenResources matches MCP endpoint<br/>Execute MCP tool with authorization details constraints<br/>(e.g., maxAmount limit for ticket reservations)
+        MS-->>C: 200 MCP Protocol Response
 
         C->>U: Show results
     end
