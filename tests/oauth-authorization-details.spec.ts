@@ -5,7 +5,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { OAuthTestHelper, AuthorizationCodeFlowOptions } from './helpers/oauth-test-helper.js';
+import { OAuthTestHelper, AuthorizationCodeFlowOptions, TEST_CLIENTS } from './helpers/oauth-test-helper.js';
 import { oauthLogger } from '../src/utils/logger.js';
 
 test.describe('OAuth Authorization Details', () => {
@@ -23,6 +23,7 @@ test.describe('OAuth Authorization Details', () => {
     // OAuth認可フローを実行（標準権限）
     const { accessToken } = await testHelper.performAuthorizationCodeFlow(page, {
       scope: 'mcp:tickets:read mcp:tickets:write',
+      clientId: TEST_CLIENTS.MCP_PUBLIC,
       authorizationDetails: 'scope-only' // 標準権限を選択
     });
 
@@ -52,6 +53,7 @@ test.describe('OAuth Authorization Details', () => {
     // カスタム制限での認可フロー（10,000円以内）
     const { accessToken } = await testHelper.performAuthorizationCodeFlow(page, {
       scope: 'mcp:tickets:read mcp:tickets:write',
+      clientId: TEST_CLIENTS.MCP_PUBLIC,
       authorizationDetails: 'custom',
       maxAmount: 10000
     });
@@ -79,6 +81,7 @@ test.describe('OAuth Authorization Details', () => {
     // カスタム制限での認可フロー（10,000円以内）
     const { accessToken } = await testHelper.performAuthorizationCodeFlow(page, {
       scope: 'mcp:tickets:read mcp:tickets:write',
+      clientId: TEST_CLIENTS.MCP_PUBLIC,
       authorizationDetails: 'custom',
       maxAmount: 10000
     });

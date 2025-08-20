@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { OAuthTestHelper } from './helpers/oauth-test-helper.js';
+import { OAuthTestHelper, TEST_CLIENTS } from './helpers/oauth-test-helper.js';
 import { configureTestLogger } from '../src/utils/logger.js';
 
 // テスト用ロガーを設定
@@ -19,7 +19,8 @@ test.describe('OAuth 2.1 Public Client Token Flow', () => {
   test('Complete OAuth 2.1 flow with PKCE for public client', async ({ page }) => {
     // 統合ヘルパーを使用してOAuth認可コードフローを実行
     const { accessToken, clientInfo } = await testHelper.performAuthorizationCodeFlow(page, {
-      scope: 'mcp:tickets:read mcp:tickets:write profile:read'
+      scope: 'mcp:tickets:read mcp:tickets:write profile:read',
+      clientId: TEST_CLIENTS.MCP_PUBLIC
     });
 
     testLogger.info('OAuth flow completed successfully', {

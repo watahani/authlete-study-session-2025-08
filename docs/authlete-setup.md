@@ -30,9 +30,20 @@ mcp__authlete__create_service_detailed "$(cat examples/authlete-service-config.j
 ```bash
 SERVICE_API_KEY=your_service_api_key
 
-# Confidential Client
+# Confidential Client (clientIdAlias: confidential-test-client)
 mcp__authlete__create_client "$(jq '.clients[0]' examples/authlete-clients-config.json)" --service_api_key=$SERVICE_API_KEY
 
-# Public Client (MCP)
+# Public Client (MCP) (clientIdAlias: mcp-public-client)
 mcp__authlete__create_client "$(jq '.clients[1]' examples/authlete-clients-config.json)" --service_api_key=$SERVICE_API_KEY
+```
+
+### 3. テスト用環境変数設定（オプション）
+
+デフォルトでは clientIdAlias が使用されますが、必要に応じて環境変数でオーバーライド可能:
+
+```bash
+# .env または環境変数として設定
+MCP_PUBLIC_CLIENT_ID=mcp-public-client
+CONFIDENTIAL_CLIENT_ID=confidential-test-client  
+CONFIDENTIAL_CLIENT_SECRET=your_confidential_client_secret
 ```
