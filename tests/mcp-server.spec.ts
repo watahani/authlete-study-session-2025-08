@@ -356,4 +356,85 @@ test.describe('MCP Server Tests', () => {
     expect(result.result.isError).toBe(true);
     expect(result.result.content[0].text).toContain('Unknown tool');
   });
+
+  test('ticket reservation and cancellation workflow (without OAuth)', async ({ page }) => {
+    // OAuth無効時のチケット予約・キャンセルワークフローテスト
+    const baseURL = getBaseURL(page);
+
+    // 1. 利用可能なチケット一覧を取得
+    const listTicketsRequest = {
+      jsonrpc: '2.0',
+      id: 10,
+      method: 'tools/call',
+      params: {
+        name: 'list_tickets',
+        arguments: { limit: 5 }
+      }
+    };
+
+    const listResponse = await page.request.post(`${baseURL}/mcp`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream'
+      },
+      data: JSON.stringify(listTicketsRequest)
+    });
+
+    expect(listResponse.status()).toBe(200);
+    const listResult = parseSSEResponse(await listResponse.text());
+    expect(listResult.result.content[0].text).toContain('利用可能なチケット');
+
+    // 2. OAuth無効環境での予約試行（失敗することを確認）
+    const reserveRequest = {
+      jsonrpc: '2.0',
+      id: 11,
+      method: 'tools/call',
+      params: {
+        name: 'reserve_ticket',
+        arguments: {
+          ticket_id: 1,
+          seats: 2
+        }
+      }
+    };
+
+    const reserveResponse = await page.request.post(`${baseURL}/mcp`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream'
+      },
+      data: JSON.stringify(reserveRequest)
+    });
+
+    expect(reserveResponse.status()).toBe(200);
+    const reserveResult = parseSSEResponse(await reserveResponse.text());
+    expect(reserveResult.result.isError).toBe(true);
+    expect(reserveResult.result.content[0].text).toContain('Unauthorized');
+
+    // 3. OAuth無効環境でのキャンセル試行（失敗することを確認）
+    const cancelRequest = {
+      jsonrpc: '2.0',
+      id: 12,
+      method: 'tools/call',
+      params: {
+        name: 'cancel_reservation',
+        arguments: {
+          reservation_id: 1
+        }
+      }
+    };
+
+    const cancelResponse = await page.request.post(`${baseURL}/mcp`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream'
+      },
+      data: JSON.stringify(cancelRequest)
+    });
+
+    expect(cancelResponse.status()).toBe(200);
+    const cancelResult = parseSSEResponse(await cancelResponse.text());
+    expect(cancelResult.result.isError).toBe(true);
+    expect(cancelResult.result.content[0].text).toContain('Unauthorized');
+  });
 });
