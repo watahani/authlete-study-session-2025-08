@@ -1,0 +1,129 @@
+{
+  "clients": [
+    {
+      "clientName": "Ticket Service Test Client",
+      "description": "Test client for OAuth authorization code flow testing",
+      "clientType": "CONFIDENTIAL",
+      "redirectUris": [
+        "https://localhost:3443/callback",
+        "http://localhost:8080/callback"
+      ],
+      "responseTypes": [
+        "CODE"
+      ],
+      "grantTypes": [
+        "AUTHORIZATION_CODE",
+        "REFRESH_TOKEN"
+      ],
+      "subjectType": "PUBLIC",
+      "idTokenSignAlg": "RS256",
+      "tokenAuthMethod": "CLIENT_SECRET_BASIC",
+      "defaultMaxAge": 0,
+      "authTimeRequired": false,
+      "clientIdAliasEnabled": true,
+      "extension": {
+        "requestableScopesEnabled": false,
+        "accessTokenDuration": 0,
+        "refreshTokenDuration": 0,
+        "tokenExchangePermitted": false,
+        "idTokenDuration": 0
+      },
+      "tlsClientCertificateBoundAccessTokens": false,
+      "bcUserCodeRequired": false,
+      "dynamicallyRegistered": false,
+      "parRequired": false,
+      "requestObjectRequired": false,
+      "frontChannelRequestObjectEncryptionRequired": false,
+      "requestObjectEncryptionAlgMatchRequired": false,
+      "requestObjectEncryptionEncMatchRequired": false,
+      "singleAccessTokenPerSubject": false,
+      "pkceRequired": false,
+      "pkceS256Required": false,
+      "rsRequestSigned": false,
+      "dpopRequired": false,
+      "locked": false,
+      "responseModes": [
+        "QUERY",
+        "FRAGMENT",
+        "FORM_POST",
+        "JWT",
+        "QUERY_JWT",
+        "FRAGMENT_JWT",
+        "FORM_POST_JWT"
+      ],
+      "mtlsEndpointAliasesUsed": false,
+      "trustChainExpiresAt": 0,
+      "trustChainUpdatedAt": 0,
+      "clientRegistrationTypes": [],
+      "automaticallyRegistered": false,
+      "explicitlyRegistered": false,
+      "credentialResponseEncryptionRequired": false
+    },
+    {
+      "clientName": "MCP Client for Ticket Service",
+      "description": "MCP client for accessing ticket service APIs",
+      "clientType": "PUBLIC",
+      "redirectUris": [
+        "http://localhost:8080/mcp/callback",
+        "mcp://localhost/callback",
+        "http://localhost:6274/oauth/callback",
+        "https://localhost:6274/oauth/callback",
+        "https://localhost:3443/oauth/callback",
+        "http://localhost:22396/oauth/callback",
+        "http://localhost/oauth/callback"
+      ],
+      "responseTypes": [
+        "CODE"
+      ],
+      "grantTypes": [
+        "AUTHORIZATION_CODE"
+      ],
+      "subjectType": "PUBLIC",
+      "idTokenSignAlg": "RS256",
+      "tokenAuthMethod": "NONE",
+      "defaultMaxAge": 0,
+      "authTimeRequired": false,
+      "clientIdAliasEnabled": true,
+      "authorizationDetailsTypes": [
+        "ticket-reservation"
+      ],
+      "extension": {
+        "requestableScopesEnabled": false,
+        "accessTokenDuration": 0,
+        "refreshTokenDuration": 0,
+        "tokenExchangePermitted": false,
+        "idTokenDuration": 0
+      },
+      "tlsClientCertificateBoundAccessTokens": false,
+      "bcUserCodeRequired": false,
+      "dynamicallyRegistered": false,
+      "parRequired": false,
+      "requestObjectRequired": false,
+      "frontChannelRequestObjectEncryptionRequired": false,
+      "requestObjectEncryptionAlgMatchRequired": false,
+      "requestObjectEncryptionEncMatchRequired": false,
+      "singleAccessTokenPerSubject": false,
+      "pkceRequired": false,
+      "pkceS256Required": false,
+      "rsRequestSigned": false,
+      "dpopRequired": false,
+      "locked": false,
+      "responseModes": [
+        "QUERY",
+        "FRAGMENT",
+        "FORM_POST",
+        "JWT",
+        "QUERY_JWT",
+        "FRAGMENT_JWT",
+        "FORM_POST_JWT"
+      ],
+      "mtlsEndpointAliasesUsed": false,
+      "trustChainExpiresAt": 0,
+      "trustChainUpdatedAt": 0,
+      "clientRegistrationTypes": [],
+      "automaticallyRegistered": false,
+      "explicitlyRegistered": false,
+      "credentialResponseEncryptionRequired": false
+    }
+  ]
+}
