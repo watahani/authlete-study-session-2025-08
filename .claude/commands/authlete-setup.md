@@ -46,6 +46,12 @@ mcp__authlete__create_client "$(jq '.clients[1]' examples/authlete-clients-confi
 **重要**: `AUTHLETE_SERVICE_ACCESS_TOKEN` は `SERVICE_API_KEY` とは異なります。
 この値は Authlete コンソールから別途取得する必要があります。
 
+**サービスアクセストークンの取得手順**:
+1. Authleteコンソール (https://console.authlete.com) にログイン
+2. Authlete MCP に設定した組織を選択
+3. サービス「Ticket Service OAuth Server」を選択
+4. 「サービス設定」→「基本設定」→「詳細設定」→ブレードからサービスアクセストークンを取得
+
 ```bash
 # .env ファイルまたは環境変数として設定
 export AUTHLETE_SERVICE_ACCESS_TOKEN="コンソールから取得したサービスアクセストークン"
@@ -133,9 +139,12 @@ EOF
 
 echo "✅ .env.template ファイルを生成しました"
 echo "📋 次の手順:"
-echo "   1. Authlete コンソールから AUTHLETE_SERVICE_ACCESS_TOKEN を取得"
-echo "   2. .env.template を .env にコピーして AUTHLETE_SERVICE_ACCESS_TOKEN を設定"
-echo "   3. テスト実行: npm run test:oauth"
+echo "   1. Authleteコンソール (https://console.authlete.com) にログイン"
+echo "   2. Authlete MCP に設定した組織を選択"
+echo "   3. サービス「Ticket Service OAuth Server」を選択"
+echo "   4. 「サービス設定」→「基本設定」→「詳細設定」→ブレードからサービスアクセストークンを取得"
+echo "   5. .env.template を .env にコピーして AUTHLETE_SERVICE_ACCESS_TOKEN を設定"
+echo "   6. テスト実行: npm run test:oauth"
 echo ""
 echo "🎉 Authlete セットアップ完了！"
 ```
