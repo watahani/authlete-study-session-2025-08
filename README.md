@@ -68,6 +68,124 @@ LOG_LEVEL=debug npm run dev
 - **OAuth認可エンドポイント**: https://localhost:3443/oauth/authorize
 - **ヘルスチェック**: https://localhost:3443/health
 
+## 📋 システムアーキテクチャ
+
+以下は、MCP Client、Authorization Server、MCP Server、Authleteを含む完全なOAuth 2.1通信フローを示したシーケンス図です：
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant C as MCP Client<br/>(public/native/web)
+    participant AS as Authorization Server (AS)<br/>(frontend endpoints + config API)
+    participant AL as Authlete<br/>(backend APIs)
+    participant MS as MCP Server (= Resource Server)<br/>(MCP API + Protected Resources)
+
+    %% Initial MCP Server Access (Authentication Challenge)
+    rect rgb(255, 240, 240)
+        Note over C,MS: Initial MCP Server Access (Authentication Challenge)
+        C->>MS: POST /mcp (MCP Protocol)<br/>(without Authorization header)
+        MS-->>C: 401 Unauthorized<br/>WWW-Authenticate: Bearer realm="baseUrl",<br/>error="invalid_request",<br/>error_description="Access token is required",<br/>resource_metadata="baseUrl/.well-known/oauth-protected-resource/mcp"
+    end
+
+    %% MCP Protected Resource Metadata
+    rect rgb(240, 255, 240)
+        Note over C,MS: MCP Protected Resource Metadata Discovery
+        C->>MS: GET /.well-known/oauth-protected-resource/mcp
+        MS-->>C: 200 {authorization_servers: [baseUrl], resource: "baseUrl/mcp",<br/>scopes_supported: ["mcp:tickets:read", "mcp:tickets:write"], ...}
+        
+        Note over C: From MCP(PR) metadata, client learns AS base URL.<br/>Then it discovers AS metadata by two methods:<br/>1) well-known (RFC 8414)<br/>2) AS service configuration API (backed by Authlete)
+    end
+
+    %% Authorization Server Metadata Discovery
+    rect rgb(240, 240, 255)
+        Note over C,AL: Authorization Server Metadata Discovery
+        C->>AS: GET /.well-known/oauth-authorization-server
+        AS->>AL: GET /service/configuration
+        AL-->>AS: 200 OAuth Server Metadata
+        AS-->>C: 200 {authorization_endpoint, token_endpoint,<br/>registration_endpoint, introspection_endpoint,<br/>code_challenge_methods_supported: ["S256"], ...}
+    end
+
+    %% Dynamic Client Registration (if needed)
+    rect rgb(255, 255, 240)
+        Note over C,AL: Dynamic Client Registration (RFC 7591)
+        C->>AS: POST /oauth/register {redirect_uris, grant_types, response_types,<br/>client_name, token_endpoint_auth_method, ...}
+        AS->>AL: POST /client/registration {json: enhanced_metadata}
+        AL-->>AS: 201 {action: "CREATED", responseContent}
+        AS-->>C: 201 {client_id, client_secret, registration_access_token, ...}
+    end
+
+    %% Authorization (PKCE, two-step with Authlete)
+    rect rgb(250, 240, 255)
+        Note over U,AL: OAuth 2.1 Authorization Code + PKCE Flow
+        U->>C: Start sign-in / connect MCP
+        C->>C: Generate code_verifier / code_challenge=S256(...)<br/>state, nonce
+        C->>AS: GET /oauth/authorize?response_type=code&<br/>client_id, redirect_uri, scope=mcp:tickets:read&state, nonce,<br/>code_challenge, code_challenge_method=S256&<br/>resource=https://localhost:3443/mcp&<br/>authorization_details=[{type:"ticket-reservation"}]
+
+        AS->>AL: POST /auth/authorization {parameters}
+        AL-->>AS: 200 {action: "INTERACTION", ticket, client, scopes,<br/>authorizationDetails, ...}
+
+        alt User not authenticated
+            AS-->>C: 302 /auth/login?return_to=/oauth/authorize/consent
+            C->>AS: Login credentials (Passport.js)
+            AS-->>C: 302 /oauth/authorize/consent
+        end
+
+        AS->>U: Consent UI with authorization details options<br/>(standard vs custom limits)
+        U-->>AS: POST /oauth/authorize/decision<br/>{authorized: true, authorizationDetailsJson}
+
+        AS->>AL: POST /auth/authorization/issue<br/>{ticket, subject, authorizationDetails?: {elements: [...]}}
+        AL-->>AS: 200 {action: "LOCATION", responseContent}
+        AS-->>C: 302 redirect_uri?code=...&state=...
+    end
+
+    %% Token Exchange
+    rect rgb(240, 255, 255)
+        Note over C,AL: Token Exchange
+        C->>AS: POST /oauth/token<br/>grant_type=authorization_code, code,<br/>redirect_uri, code_verifier, client_id, client_secret
+        AS->>AL: POST /auth/token<br/>{parameters, clientId, clientSecret}
+        AL-->>AS: 200 {action: "OK", responseContent}
+        AS-->>C: 200 {access_token, token_type: "Bearer",<br/>refresh_token?, expires_in, scope, ...}
+    end
+
+    %% Access MCP Resource
+    rect rgb(255, 250, 240)
+        Note over C,MS: MCP Protocol with OAuth Protection
+        C->>MS: POST /mcp (MCP Protocol)<br/>Authorization: Bearer <access_token>
+        MS->>AL: POST /auth/introspection {token, scopes: ["mcp:tickets:read"]}
+        AL-->>MS: 200 {action: "OK", subject, scopes, accessTokenResources,<br/>authorizationDetails?, ...}
+
+        alt Token invalid or insufficient scope
+            MS-->>C: 401/403 with WWW-Authenticate header
+        else Token valid with resource scope
+            MS->>MS: Execute MCP tool with authorization details constraints<br/>(e.g., maxAmount limit for ticket reservations)
+            MS-->>C: 200 MCP Protocol Response
+        end
+
+        C->>U: Show results
+    end
+```
+
+### アーキテクチャの主要ポイント
+
+**OAuth 2.1 準拠機能:**
+- **Authentication Challenge**: 初回アクセス時のWWW-Authenticateヘッダーレスポンス
+- **Resource Indicators (RFC 8707)**: MCPリソースへのスコープ制限
+- **Authorization Details**: 詳細権限制御（チケット予約の金額制限等）
+- **Dynamic Client Registration (DCR)**: RFC 7591/7592準拠の動的クライアント登録
+
+**Discovery & Metadata (RFC 8414):**
+- **Authorization Server Metadata**: `/.well-known/oauth-authorization-server`
+- **Protected Resource Metadata**: `/.well-known/oauth-protected-resource/mcp`
+
+**セキュリティ機能:**
+- **HTTPS必須**: OAuth 2.1準拠のセキュア通信
+- **PKCE必須**: 認可コードインターセプト攻撃対策
+- **Bearer Token Authentication**: RFC 6750準拠（Authorizationヘッダーのみ）
+- **Resource Scoping**: MCPリソースへのアクセス制限
+- **Scope-based Access Control**: `mcp:tickets:read`/`mcp:tickets:write`
+
+この統合アーキテクチャにより、Claude AIなどのMCPクライアントが、セキュアなOAuth 2.1認証を通じて、チケット販売システムのリソースに安全にアクセスできます。
+
 ## 🔧 API エンドポイント
 
 ### システム API
@@ -581,121 +699,3 @@ npm run dev
 - Authlete の本番環境では適切な認証情報管理が必要
 
 このプロジェクトは OAuth 2.1、MCP、構造化ログシステムを統合した包括的なサンプル実装として、認証・認可の学習と実践に最適な環境を提供します。
-
-## 📋 システムアーキテクチャ
-
-以下は、MCP Client、Authorization Server、MCP Server、Authleteを含む完全なOAuth 2.1通信フローを示したシーケンス図です：
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant C as MCP Client<br/>(public/native/web)
-    participant AS as Authorization Server (AS)<br/>(frontend endpoints + config API)
-    participant AL as Authlete<br/>(backend APIs)
-    participant MS as MCP Server (= Resource Server)<br/>(MCP API + Protected Resources)
-
-    %% Initial MCP Server Access (Authentication Challenge)
-    rect rgb(255, 240, 240)
-        Note over C,MS: Initial MCP Server Access (Authentication Challenge)
-        C->>MS: POST /mcp (MCP Protocol)<br/>(without Authorization header)
-        MS-->>C: 401 Unauthorized<br/>WWW-Authenticate: Bearer realm="baseUrl",<br/>error="invalid_request",<br/>error_description="Access token is required",<br/>resource_metadata="baseUrl/.well-known/oauth-protected-resource/mcp"
-    end
-
-    %% MCP Protected Resource Metadata
-    rect rgb(240, 255, 240)
-        Note over C,MS: MCP Protected Resource Metadata Discovery
-        C->>MS: GET /.well-known/oauth-protected-resource/mcp
-        MS-->>C: 200 {authorization_servers: [baseUrl], resource: "baseUrl/mcp",<br/>scopes_supported: ["mcp:tickets:read", "mcp:tickets:write"], ...}
-        
-        Note over C: From MCP(PR) metadata, client learns AS base URL.<br/>Then it discovers AS metadata by two methods:<br/>1) well-known (RFC 8414)<br/>2) AS service configuration API (backed by Authlete)
-    end
-
-    %% Authorization Server Metadata Discovery
-    rect rgb(240, 240, 255)
-        Note over C,AL: Authorization Server Metadata Discovery
-        C->>AS: GET /.well-known/oauth-authorization-server
-        AS->>AL: GET /service/configuration
-        AL-->>AS: 200 OAuth Server Metadata
-        AS-->>C: 200 {authorization_endpoint, token_endpoint,<br/>registration_endpoint, introspection_endpoint,<br/>code_challenge_methods_supported: ["S256"], ...}
-    end
-
-    %% Dynamic Client Registration (if needed)
-    rect rgb(255, 255, 240)
-        Note over C,AL: Dynamic Client Registration (RFC 7591)
-        C->>AS: POST /oauth/register {redirect_uris, grant_types, response_types,<br/>client_name, token_endpoint_auth_method, ...}
-        AS->>AL: POST /client/registration {json: enhanced_metadata}
-        AL-->>AS: 201 {action: "CREATED", responseContent}
-        AS-->>C: 201 {client_id, client_secret, registration_access_token, ...}
-    end
-
-    %% Authorization (PKCE, two-step with Authlete)
-    rect rgb(250, 240, 255)
-        Note over U,AL: OAuth 2.1 Authorization Code + PKCE Flow
-        U->>C: Start sign-in / connect MCP
-        C->>C: Generate code_verifier / code_challenge=S256(...)<br/>state, nonce
-        C->>AS: GET /oauth/authorize?response_type=code&<br/>client_id, redirect_uri, scope=mcp:tickets:read&state, nonce,<br/>code_challenge, code_challenge_method=S256&<br/>resource=https://localhost:3443/mcp&<br/>authorization_details=[{type:"ticket-reservation"}]
-
-        AS->>AL: POST /auth/authorization {parameters}
-        AL-->>AS: 200 {action: "INTERACTION", ticket, client, scopes,<br/>authorizationDetails, ...}
-
-        alt User not authenticated
-            AS-->>C: 302 /auth/login?return_to=/oauth/authorize/consent
-            C->>AS: Login credentials (Passport.js)
-            AS-->>C: 302 /oauth/authorize/consent
-        end
-
-        AS->>U: Consent UI with authorization details options<br/>(standard vs custom limits)
-        U-->>AS: POST /oauth/authorize/decision<br/>{authorized: true, authorizationDetailsJson}
-
-        AS->>AL: POST /auth/authorization/issue<br/>{ticket, subject, authorizationDetails?: {elements: [...]}}
-        AL-->>AS: 200 {action: "LOCATION", responseContent}
-        AS-->>C: 302 redirect_uri?code=...&state=...
-    end
-
-    %% Token Exchange
-    rect rgb(240, 255, 255)
-        Note over C,AL: Token Exchange
-        C->>AS: POST /oauth/token<br/>grant_type=authorization_code, code,<br/>redirect_uri, code_verifier, client_id, client_secret
-        AS->>AL: POST /auth/token<br/>{parameters, clientId, clientSecret}
-        AL-->>AS: 200 {action: "OK", responseContent}
-        AS-->>C: 200 {access_token, token_type: "Bearer",<br/>refresh_token?, expires_in, scope, ...}
-    end
-
-    %% Access MCP Resource
-    rect rgb(255, 250, 240)
-        Note over C,MS: MCP Protocol with OAuth Protection
-        C->>MS: POST /mcp (MCP Protocol)<br/>Authorization: Bearer <access_token>
-        MS->>AL: POST /auth/introspection {token, scopes: ["mcp:tickets:read"]}
-        AL-->>MS: 200 {action: "OK", subject, scopes, accessTokenResources,<br/>authorizationDetails?, ...}
-
-        alt Token invalid or insufficient scope
-            MS-->>C: 401/403 with WWW-Authenticate header
-        else Token valid with resource scope
-            MS->>MS: Execute MCP tool with authorization details constraints<br/>(e.g., maxAmount limit for ticket reservations)
-            MS-->>C: 200 MCP Protocol Response
-        end
-
-        C->>U: Show results
-    end
-```
-
-### アーキテクチャの主要ポイント
-
-**OAuth 2.1 準拠機能:**
-- **Authentication Challenge**: 初回アクセス時のWWW-Authenticateヘッダーレスポンス
-- **Resource Indicators (RFC 8707)**: MCPリソースへのスコープ制限
-- **Authorization Details**: 詳細権限制御（チケット予約の金額制限等）
-- **Dynamic Client Registration (DCR)**: RFC 7591/7592準拠の動的クライアント登録
-
-**Discovery & Metadata (RFC 8414):**
-- **Authorization Server Metadata**: `/.well-known/oauth-authorization-server`
-- **Protected Resource Metadata**: `/.well-known/oauth-protected-resource/mcp`
-
-**セキュリティ機能:**
-- **HTTPS必須**: OAuth 2.1準拠のセキュア通信
-- **PKCE必須**: 認可コードインターセプト攻撃対策
-- **Bearer Token Authentication**: RFC 6750準拠（Authorizationヘッダーのみ）
-- **Resource Scoping**: MCPリソースへのアクセス制限
-- **Scope-based Access Control**: `mcp:tickets:read`/`mcp:tickets:write`
-
-この統合アーキテクチャにより、Claude AIなどのMCPクライアントが、セキュアなOAuth 2.1認証を通じて、チケット販売システムのリソースに安全にアクセスできます。
