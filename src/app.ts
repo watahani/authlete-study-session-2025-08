@@ -23,7 +23,6 @@ dotenv.config();
 
 // HTTPSポート設定
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
-const HTTP_PORT = process.env.HTTP_PORT || 3000;
 
 // MCP OAuth認可の有効/無効を判定（明示的にfalseの場合のみ無効）
 const MCP_OAUTH_ENABLED = process.env.MCP_OAUTH_ENABLED !== 'false';
@@ -236,10 +235,6 @@ const startServer = async (): Promise<void> => {
         logger.info(`App health check: https://localhost:${HTTPS_PORT}/health`);
       });
 
-      // HTTPサーバーを起動（リダイレクト用）
-      httpApp.listen(HTTP_PORT, () => {
-        logger.info(`HTTP Server running on http://localhost:${HTTP_PORT} (redirects to HTTPS)`);
-      });
 
   } catch (error) {
     logger.error('Failed to start server', error);
