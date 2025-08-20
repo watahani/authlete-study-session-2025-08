@@ -15,21 +15,31 @@ function parseSSEResponse(text: string): any {
 
 export interface AuthorizationCodeFlowOptions {
   scope: string;
+  clientId: string;
   authorizationDetails?: 'scope-only' | 'custom';
   maxAmount?: number;
+  clientSecret?: string;
+  clientType?: 'PUBLIC' | 'CONFIDENTIAL';
+  tokenAuthMethod?: 'CLIENT_SECRET_BASIC' | 'CLIENT_SECRET_POST' | 'NONE';
 }
 
 export interface OAuthFlowResult {
   accessToken: string;
   clientInfo: { client_id: string };
   codeVerifier: string;
+  refreshToken?: string;
 }
+
+// Test Client Constants
+export const TEST_CLIENTS = {
+  MCP_PUBLIC: process.env.MCP_PUBLIC_CLIENT_ID || 'mcp-public-client', // authorization details対応済み, Public Client
+  CONFIDENTIAL: process.env.CONFIDENTIAL_CLIENT_ID || 'confidential-test-client',
+  CONFIDENTIAL_SECRET: process.env.CONFIDENTIAL_CLIENT_SECRET || 'BskQUERTo76KUYy4gKnyKDjkkph-4wjYF-4Bw34cfYAGRS6eJ4k9YfFbFjSoOHBI9DwjgyTngDlJsf6s71BOYg'
+} as const;
 
 export class OAuthTestHelper {
   private createdClients: string[] = [];
   
-  // MCP Test Client (authorization details対応済み, Public Client)
-  private readonly MCP_CLIENT_ID = '3006291287';
   private readonly baseUrl = process.env.BASE_URL || 'https://localhost:3443';
   private readonly redirectUri = `${this.baseUrl}/oauth/callback`;
 
@@ -70,6 +80,12 @@ export class OAuthTestHelper {
   }
 
   async performAuthorizationCodeFlow(page: Page, options: AuthorizationCodeFlowOptions): Promise<OAuthFlowResult> {
+    // クライアント設定の決定
+    const clientId = options.clientId;
+    const clientSecret = options.clientSecret;
+    const tokenAuthMethod = options.tokenAuthMethod || 'CLIENT_SECRET_BASIC';
+    const isConfidential = options.clientType === 'CONFIDENTIAL' || !!clientSecret;
+    
     // PKCEパラメータを生成
     const codeVerifier = this.generateCodeVerifier();
     const codeChallenge = this.generateCodeChallenge(codeVerifier);
@@ -99,10 +115,13 @@ export class OAuthTestHelper {
     // 認可エンドポイントに移動
     const authUrl = new URL(`${this.baseUrl}/oauth/authorize`);
     authUrl.searchParams.append('response_type', 'code');
-    authUrl.searchParams.append('client_id', this.MCP_CLIENT_ID);
+    authUrl.searchParams.append('client_id', clientId);
     authUrl.searchParams.append('redirect_uri', this.redirectUri);
     authUrl.searchParams.append('scope', options.scope);
-    authUrl.searchParams.append('resource', `${this.baseUrl}/mcp`);
+    // MCP関連スコープの場合のみresourceパラメータを追加
+    if (options.scope.includes('mcp:')) {
+      authUrl.searchParams.append('resource', `${this.baseUrl}/mcp`);
+    }
     authUrl.searchParams.append('code_challenge', codeChallenge);
     authUrl.searchParams.append('code_challenge_method', 'S256');
     authUrl.searchParams.append('state', 'test_state_' + Date.now());
@@ -171,18 +190,40 @@ export class OAuthTestHelper {
       throw new Error('認可コードが取得できませんでした');
     }
     
-    // アクセストークンを取得（Public Clientなのでclient_secretなし、PKCE使用）
+    // アクセストークンを取得
+    const tokenRequestData = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorizationCode,
+      redirect_uri: this.redirectUri,
+      code_verifier: codeVerifier
+    });
+
+    let tokenHeaders: Record<string, string> = {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    };
+
+    if (isConfidential && clientSecret) {
+      // Confidential Client: 認証方法に応じて処理を分岐
+      if (tokenAuthMethod === 'CLIENT_SECRET_BASIC') {
+        // Basic認証を使用
+        const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+        tokenHeaders['Authorization'] = `Basic ${credentials}`;
+      } else if (tokenAuthMethod === 'CLIENT_SECRET_POST') {
+        // POST bodyに含める
+        tokenRequestData.append('client_id', clientId);
+        tokenRequestData.append('client_secret', clientSecret);
+      } else {
+        // NONE の場合はクライアントIDのみ
+        tokenRequestData.append('client_id', clientId);
+      }
+    } else {
+      // Public Client
+      tokenRequestData.append('client_id', clientId);
+    }
+
     const tokenResponse = await page.request.post(`${this.baseUrl}/oauth/token`, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      data: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code: authorizationCode,
-        redirect_uri: this.redirectUri,
-        client_id: this.MCP_CLIENT_ID,
-        code_verifier: codeVerifier
-      }).toString()
+      headers: tokenHeaders,
+      data: tokenRequestData.toString()
     });
     
     if (!tokenResponse.ok()) {
@@ -200,8 +241,9 @@ export class OAuthTestHelper {
     
     return {
       accessToken: tokenData.access_token,
-      clientInfo: { client_id: this.MCP_CLIENT_ID },
-      codeVerifier: codeVerifier
+      clientInfo: { client_id: clientId },
+      codeVerifier: codeVerifier,
+      refreshToken: tokenData.refresh_token
     };
   }
 
@@ -211,6 +253,69 @@ export class OAuthTestHelper {
 
   private generateCodeChallenge(codeVerifier: string): string {
     return crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+  }
+
+  async performRefreshTokenFlow(
+    page: Page, 
+    refreshToken: string, 
+    clientId: string, 
+    clientSecret?: string, 
+    clientType?: 'PUBLIC' | 'CONFIDENTIAL',
+    tokenAuthMethod?: 'CLIENT_SECRET_BASIC' | 'CLIENT_SECRET_POST' | 'NONE'
+  ): Promise<{ accessToken: string; refreshToken?: string }> {
+    // クライアント設定の決定
+    const authMethod = tokenAuthMethod || 'CLIENT_SECRET_BASIC';
+    const isConfidential = clientType === 'CONFIDENTIAL' || !!clientSecret;
+
+    const tokenRequestData = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken
+    });
+
+    let tokenHeaders: Record<string, string> = {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    };
+
+    if (isConfidential && clientSecret) {
+      // Confidential Client: 認証方法に応じて処理を分岐
+      if (authMethod === 'CLIENT_SECRET_BASIC') {
+        // Basic認証を使用
+        const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+        tokenHeaders['Authorization'] = `Basic ${credentials}`;
+      } else if (authMethod === 'CLIENT_SECRET_POST') {
+        // POST bodyに含める
+        tokenRequestData.append('client_id', clientId);
+        tokenRequestData.append('client_secret', clientSecret);
+      } else {
+        // NONE の場合はクライアントIDのみ
+        tokenRequestData.append('client_id', clientId);
+      }
+    } else {
+      // Public Client
+      tokenRequestData.append('client_id', clientId);
+    }
+
+    const tokenResponse = await page.request.post(`${this.baseUrl}/oauth/token`, {
+      headers: tokenHeaders,
+      data: tokenRequestData.toString()
+    });
+
+    if (!tokenResponse.ok()) {
+      const errorText = await tokenResponse.text();
+      throw new Error(`リフレッシュトークンエラー: ${tokenResponse.status()} - ${errorText}`);
+    }
+
+    const tokenData = await tokenResponse.json();
+
+    oauthLogger.debug('Refresh token flow completed', {
+      accessToken: !!tokenData.access_token,
+      refreshToken: !!tokenData.refresh_token
+    });
+
+    return {
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token
+    };
   }
 
   async callMCPEndpoint(page: Page, accessToken: string, tool: string, args: any) {

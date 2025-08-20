@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { OAuthTestHelper } from './helpers/oauth-test-helper.js';
+import { OAuthTestHelper, TEST_CLIENTS } from './helpers/oauth-test-helper.js';
 
 test.describe('OAuth Authorization Code Flow', () => {
   const testHelper = new OAuthTestHelper();
@@ -22,7 +22,8 @@ test.describe('OAuth Authorization Code Flow', () => {
   test('should handle authorization code flow', async ({ page }) => {
     // 統合ヘルパーを使用してOAuth認可コードフローを実行
     const { accessToken, clientInfo } = await testHelper.performAuthorizationCodeFlow(page, {
-      scope: 'tickets:read tickets:write'
+      scope: 'tickets:read tickets:write',
+      clientId: TEST_CLIENTS.MCP_PUBLIC
     });
 
     // アクセストークンが正常に取得できることを確認
@@ -31,13 +32,14 @@ test.describe('OAuth Authorization Code Flow', () => {
     expect(accessToken.length).toBeGreaterThan(0);
 
     // クライアント情報が正しく設定されることを確認
-    expect(clientInfo.client_id).toBe('3006291287');
+    expect(clientInfo.client_id).toBe(TEST_CLIENTS.MCP_PUBLIC);
   });
 
   test('should show consent page with proper client information', async ({ page }) => {
     // 統合ヘルパーを使用してOAuth認可フローを開始し、consent画面まで進む
     const { accessToken } = await testHelper.performAuthorizationCodeFlow(page, {
-      scope: 'tickets:read tickets:write'
+      scope: 'tickets:read tickets:write',
+      clientId: TEST_CLIENTS.MCP_PUBLIC
     });
 
     // 正常にアクセストークンが取得できることを確認

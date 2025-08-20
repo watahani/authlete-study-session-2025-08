@@ -2,9 +2,11 @@
   "clients": [
     {
       "clientName": "Ticket Service Test Client",
+      "clientIdAlias": "confidential-test-client",
       "description": "Test client for OAuth authorization code flow testing",
       "clientType": "CONFIDENTIAL",
       "redirectUris": [
+        "https://localhost:3443/oauth/callback",
         "https://localhost:3443/callback",
         "http://localhost:8080/callback"
       ],
@@ -61,6 +63,7 @@
     },
     {
       "clientName": "MCP Client for Ticket Service",
+      "clientIdAlias": "mcp-public-client",
       "description": "MCP client for accessing ticket service APIs",
       "clientType": "PUBLIC",
       "redirectUris": [

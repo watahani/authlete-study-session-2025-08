@@ -51,6 +51,21 @@ cp .env.example .env
 # .env ファイルを編集してAuthlete認証情報を設定
 ```
 
+#### Claude Code ユーザー向け
+
+Claude Code を使用している場合、自動セットアップコマンドが利用できます：
+
+```
+/authlete-setup
+```
+
+このコマンドを実行すると：
+- Authlete サービス・クライアントの自動作成
+- 環境変数テンプレートの生成（`.env.template`）
+- 詳細なセットアップ手順の表示
+
+コマンド実行後は、Authleteコンソールからサービスアクセストークンを取得して`.env`ファイルに設定するだけで完了です。
+
 ### 2. アプリケーションの起動
 
 ```bash
@@ -623,6 +638,40 @@ MCP_OAUTH_ENABLED=true npm run dev
 # デフォルト: NODE_ENV=test なら無効、それ以外は有効
 npm run dev
 ```
+
+## 🛠️ Claude Code スラッシュコマンド
+
+このプロジェクトには Claude Code で利用できる専用スラッシュコマンドが用意されています。
+
+### /test-commands
+
+包括的なテストコマンドガイド：
+
+```
+/test-commands
+```
+
+- OAuth、MCP、Ticket Service の3種類のテスト分類
+- GitHub Actions 相当のテスト実行手順  
+- デバッグ・トラブルシューティング方法
+- 環境変数設定ガイド
+
+### /authlete-setup
+
+Authlete サービス・クライアントの自動セットアップガイド：
+
+```
+/authlete-setup
+```
+
+- MCP を利用したサービス・クライアント作成手順
+- 環境変数の設定方法
+- 設定値の区別（SERVICE_API_KEY vs AUTHLETE_SERVICE_ACCESS_TOKEN）
+- 一括セットアップスクリプト例
+
+**使用方法**: Claude Code で `/authlete-setup` と入力すると、詳細なセットアップ手順が表示されます。
+
+**重要**: `AUTHLETE_SERVICE_ACCESS_TOKEN` は `SERVICE_API_KEY` とは異なり、Authleteコンソールから別途取得が必要です。
 
 ## 📊 実装完了状況
 
