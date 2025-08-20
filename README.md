@@ -169,8 +169,8 @@ sequenceDiagram
         MS->>AL: POST /auth/introspection {token, scopes: ["mcp:tickets:read"]}
         AL-->>MS: 200 {action: "OK", subject, scopes, accessTokenResources,<br/>authorizationDetails?, ...}
 
-        Note over MS,AL: Token Validation (accessTokenResources check)
-        MS->>MS: Execute MCP tool with authorization details constraints<br/>(e.g., maxAmount limit for ticket reservations)
+        Note over MS,AL: Token Validation
+        MS->>MS: Verify accessTokenResources matches MCP endpoint<br/>Execute MCP tool with authorization details constraints<br/>(e.g., maxAmount limit for ticket reservations)
         MS-->>C: 200 MCP Protocol Response
 
         C->>U: Show results
