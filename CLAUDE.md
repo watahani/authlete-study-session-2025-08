@@ -40,6 +40,8 @@ MCP サーバーを Authlete をバックエンドとして利用する認可サ
 
 ## 開発コマンド
 
+### 基本コマンド
+
 ```bash
 # テスト実行
 npx playwright test
@@ -61,6 +63,39 @@ npx playwright test tests/oauth-middleware.spec.ts --config=playwright-oauth.con
 
 # MCPテスト実行（OAuth無効）
 npx playwright test tests/mcp-server.spec.ts
+```
+
+### 専用コマンドドキュメント
+
+プロジェクトには開発効率化のための専用コマンドドキュメントが用意されています：
+
+#### テスト実行コマンド集
+**ファイル**: `.claude/commands/test-commands.md`
+
+- OAuth、MCP、Ticket Service の3種類のテスト分類
+- GitHub Actions 相当のテスト実行手順
+- デバッグ・トラブルシューティング方法
+- 環境変数設定ガイド
+
+```bash
+# 推奨テスト実行
+npm run test:oauth
+
+# 手動サーバー制御でのテスト
+LOG_LEVEL=debug npm run dev
+```
+
+#### Authlete セットアップコマンド
+**ファイル**: `.claude/commands/authlete-setup.md`
+
+- Authlete サービス・クライアントの自動セットアップ
+- MCP を利用した設定復元
+- 環境変数の自動生成
+- 設定値の区別（SERVICE_API_KEY vs AUTHLETE_SERVICE_ACCESS_TOKEN）
+
+```bash
+# サービス・クライアント一括セットアップ例
+mcp__authlete__create_service_detailed "$(cat examples/authlete-service-config.json)"
 ```
 
 ## デバッグ方法

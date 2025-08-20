@@ -624,6 +624,44 @@ MCP_OAUTH_ENABLED=true npm run dev
 npm run dev
 ```
 
+## 🛠️ 開発・運用コマンド
+
+プロジェクトには開発効率を向上させる専用コマンドが用意されています。
+
+### テスト実行コマンド
+
+包括的なテストコマンドガイド：**[.claude/commands/test-commands.md](.claude/commands/test-commands.md)**
+
+```bash
+# OAuth認証フローテスト（推奨）
+npm run test:oauth
+
+# MCPサーバーテスト（OAuth無効）
+npm run test:mcp
+
+# 全テスト実行
+npm test
+
+# デバッグログ付きテスト
+LOG_LEVEL=debug npm run test:oauth
+```
+
+### Authlete セットアップコマンド
+
+Authlete サービス・クライアントの自動セットアップ：**[.claude/commands/authlete-setup.md](.claude/commands/authlete-setup.md)**
+
+```bash
+# サービス作成
+mcp__authlete__create_service_detailed "$(cat examples/authlete-service-config.json)"
+
+# クライアント作成（SERVICE_API_KEY は上記で取得）
+SERVICE_API_KEY=your_service_api_key
+mcp__authlete__create_client "$(jq '.clients[0]' examples/authlete-clients-config.json)" "$SERVICE_API_KEY"
+mcp__authlete__create_client "$(jq '.clients[1]' examples/authlete-clients-config.json)" "$SERVICE_API_KEY"
+```
+
+**重要**: `AUTHLETE_SERVICE_ACCESS_TOKEN` は `SERVICE_API_KEY` とは異なり、Authleteコンソールから別途取得が必要です。
+
 ## 📊 実装完了状況
 
 ### ✅ 完全実装済み
