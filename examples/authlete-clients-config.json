@@ -6,6 +6,7 @@
       "description": "Test client for OAuth authorization code flow testing",
       "clientType": "CONFIDENTIAL",
       "redirectUris": [
+        "https://localhost:3443/oauth/callback",
         "https://localhost:3443/callback",
         "http://localhost:8080/callback"
       ],
