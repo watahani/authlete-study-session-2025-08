@@ -10,10 +10,31 @@
 1. **Authlete MCP が Claude Code に設定済み**
    - `~/.claude/mcp_servers.json` に authlete サーバーが追加されている
    - `ORGANIZATION_ACCESS_TOKEN` と `ORGANIZATION_ID` が設定されている
+   - MCP が接続されていない場合は下記のセットアップ手順を実行
 
 2. **プロジェクトファイル**
    - `examples/authlete-service-config.json`（サービス設定）
    - `examples/authlete-clients-config.json`（クライアント設定）
+
+## Authlete MCP のセットアップ手順
+
+MCP が接続されていない場合、以下のコマンドで Authlete MCP サーバーをセットアップしてください：
+
+```bash
+claude mcp add authlete --scope local -- docker run --rm -i \
+  -e ORGANIZATION_ACCESS_TOKEN=YOUR_ORGANIZATION_ACCESS_TOKEN \
+  -e ORGANIZATION_ID=YOUR_ORGANIZATION_ID \
+  -e AUTHLETE_API_URL=https://jp.authlete.com \
+  -e AUTHLETE_API_SERVER_ID=53285 \
+  -e LOG_LEVEL=INFO \
+  ghcr.io/watahani/authlete-mcp:latest
+```
+
+**環境変数の設定値**:
+- `YOUR_ORGANIZATION_ACCESS_TOKEN`: Authlete 組織のアクセストークン
+- `YOUR_ORGANIZATION_ID`: Authlete 組織ID
+
+セットアップ完了後、Claude Code を再起動してからこのコマンドを再実行してください。
 
 ## セットアップ手順
 
