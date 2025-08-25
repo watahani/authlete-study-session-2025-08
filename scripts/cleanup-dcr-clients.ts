@@ -24,6 +24,7 @@ interface AuthleteResponse {
   resultCode: string;
   resultMessage: string;
   clients?: AuthleteClient[];
+  totalCount?: number;
 }
 
 const AUTHLETE_BASE_URL = process.env.AUTHLETE_BASE_URL || 'https://jp.authlete.com';
@@ -90,21 +91,43 @@ async function callAuthleteAPI(endpoint: string, method: 'GET' | 'POST' | 'DELET
 }
 
 /**
- * 全クライアント一覧を取得
+ * 全クライアント一覧を取得（ページング対応）
  */
 async function getAllClients(): Promise<AuthleteClient[]> {
   console.log('📋 クライアント一覧を取得中...');
   
+  const allClients: AuthleteClient[] = [];
+  let start = 0;
+  const pageSize = 100;
+  
   try {
-    const response: AuthleteResponse = await callAuthleteAPI('/client/get/list');
-    
-    if (!response.clients) {
-      console.log('ℹ️  クライアントが見つかりませんでした');
-      return [];
+    while (true) {
+      const end = start + pageSize;
+      const endpoint = `/client/get/list?limited=true&start=${start}&end=${end}`;
+      
+      console.log(`📄 ページ取得中: start=${start}, end=${end}`);
+      const response: AuthleteResponse = await callAuthleteAPI(endpoint);
+      
+      const clients = response.clients || [];
+      const totalCount = response.totalCount || 0;
+      
+      allClients.push(...clients);
+      
+      console.log(`📊 取得済み: ${allClients.length}/${totalCount} クライアント`);
+      
+      // 終了条件: start >= totalCount または返されたクライアントが0個
+      if (start >= totalCount || clients.length === 0) {
+        break;
+      }
+      
+      start = end; // 次のstartはend（包含的範囲）
+      
+      // API負荷軽減のため少し待機
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
-
-    console.log(`📊 総クライアント数: ${response.clients.length}`);
-    return response.clients;
+    
+    console.log(`✅ 総クライアント数: ${allClients.length}`);
+    return allClients;
   } catch (error) {
     console.error('❌ クライアント一覧の取得に失敗しました:', error);
     throw error;
