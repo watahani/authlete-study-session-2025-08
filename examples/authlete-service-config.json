@@ -8,6 +8,7 @@
   "userInfoEndpoint": "https://localhost:3443/oauth/userinfo",
   "jwksUri": "https://localhost:3443/.well-known/jwks.json",
   "registrationEndpoint": "https://localhost:3443/oauth/register",
+  "registrationManagementEndpoint": "https://localhost:3443/oauth/register",
   "introspectionEndpoint": "https://localhost:3443/oauth/introspect",
   "accessTokenType": "Bearer",
   "accessTokenDuration": 3600,
