@@ -40,11 +40,23 @@ export class DCRController {
       // リクエストボディをJSON文字列として準備
       const clientMetadata = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
 
-      // DCRメタデータフラグを追加
+      // クライアントメタデータを準備
       const enhancedClientMetadata = JSON.parse(clientMetadata);
-      enhancedClientMetadata.dynamically_registered = true;
-      enhancedClientMetadata.registration_method = 'dynamic';
-      enhancedClientMetadata.registration_timestamp = Math.floor(Date.now() / 1000);
+
+      // mcp: プレフィクスを持つスコープが指定されている場合、MCPクライアントフラグを設定
+      if (enhancedClientMetadata.scope) {
+        const scopes = typeof enhancedClientMetadata.scope === 'string' 
+          ? enhancedClientMetadata.scope.split(' ')
+          : enhancedClientMetadata.scope;
+        
+        if (Array.isArray(scopes) && scopes.some(scope => scope.startsWith('mcp:'))) {
+          enhancedClientMetadata.is_mcp_client = true;
+          oauthLogger.debug('MCP client detected', {
+            scopes: scopes,
+            mcpScopes: scopes.filter(scope => scope.startsWith('mcp:'))
+          });
+        }
+      }
 
       // Authlete DCR API を呼び出し
       const response = await this.authleteClient.makeRequest('/client/registration', {
@@ -230,11 +242,24 @@ export class DCRController {
       // リクエストボディをJSON文字列として準備
       const clientMetadata = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
 
-      // カスタムメタデータを完全に復元してテスト
+      // クライアントメタデータを準備
       const enhancedClientMetadata = JSON.parse(clientMetadata);
-      enhancedClientMetadata.dynamically_registered = true;
-      enhancedClientMetadata.registration_method = 'dynamic';
-      enhancedClientMetadata.last_modified_timestamp = Math.floor(Date.now() / 1000);
+
+      // mcp: プレフィクスを持つスコープが指定されている場合、MCPクライアントフラグを設定
+      if (enhancedClientMetadata.scope) {
+        const scopes = typeof enhancedClientMetadata.scope === 'string' 
+          ? enhancedClientMetadata.scope.split(' ')
+          : enhancedClientMetadata.scope;
+        
+        if (Array.isArray(scopes) && scopes.some(scope => scope.startsWith('mcp:'))) {
+          enhancedClientMetadata.is_mcp_client = true;
+          oauthLogger.debug('MCP client detected in update', {
+            clientId: clientId,
+            scopes: scopes,
+            mcpScopes: scopes.filter(scope => scope.startsWith('mcp:'))
+          });
+        }
+      }
 
       oauthLogger.debug('DCR update request payload', {
         clientId,
