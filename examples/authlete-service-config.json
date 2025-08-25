@@ -65,6 +65,9 @@
   "supportedAuthorizationDetailsTypes": [
     "ticket-reservation"
   ],
+  "supportedCustomClientMetadata": [
+    "is_mcp_client"
+  ],
   "directAuthorizationEndpointEnabled": true,
   "directTokenEndpointEnabled": true,
   "directRevocationEndpointEnabled": true,
@@ -100,7 +103,7 @@
   "hsmEnabled": false,
   "grantManagementActionRequired": false,
   "unauthorizedOnClientConfigSupported": false,
-  "dcrScopeUsedAsRequestable": false,
+  "dcrScopeUsedAsRequestable": true,
   "loopbackRedirectionUriVariable": false,
   "requestObjectAudienceChecked": false,
   "accessTokenForExternalAttachmentEmbedded": false,
