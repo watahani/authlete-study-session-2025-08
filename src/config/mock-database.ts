@@ -61,7 +61,7 @@ let tickets: MockTicket[] = [
     price: 5000.00,
     available_seats: 50,
     total_seats: 50,
-    event_date: new Date('2025-08-15 14:00:00'),
+    event_date: new Date('2025-08-28 18:30:00'),
     created_at: new Date()
   },
   {
