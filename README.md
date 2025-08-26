@@ -337,7 +337,7 @@ LOG_LEVEL=debug npx playwright test tests/oauth-token-flow.spec.ts
 ```bash
 # OAuth認可フローのデバッグログ例
 [2025-01-15 10:30:45] [DEBUG] [OAuth] Authorization request received {
-  "clientId": "3006291287",
+  "clientId": "mcp-public-client",
   "responseType": "code",
   "scopes": ["mcp:tickets:read", "mcp:tickets:write"]
 }
@@ -518,7 +518,7 @@ sudo update-ca-certificates
    ```
    https://localhost:3443/oauth/authorize?
      response_type=code&
-     client_id=3006291287&
+     client_id=mcp-public-client&
      redirect_uri=https://client.example.com/callback&
      scope=mcp:tickets:read mcp:tickets:write&
      code_challenge=CODE_CHALLENGE&
@@ -544,7 +544,7 @@ sudo update-ca-certificates
      "grant_type": "authorization_code",
      "code": "AUTHORIZATION_CODE",
      "redirect_uri": "https://client.example.com/callback",
-     "client_id": "3006291287",
+     "client_id": "mcp-public-client",
      "code_verifier": "CODE_VERIFIER"
    }
    ```
