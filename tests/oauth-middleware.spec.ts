@@ -3,6 +3,12 @@ import { test, expect } from '@playwright/test';
 test.describe('OAuth Authentication Middleware', () => {
   const baseUrl = 'https://localhost:3443';
 
+  // Helper function to get a working client identifier for token/create API using clientIdAlias
+  async function getWorkingClientIdentifier(page: any): Promise<string> {
+    // Use the known working client identifier directly
+    return 'confidential-test-client';
+  }
+
 
   test('MCP endpoint requires OAuth authentication', async ({ page }) => {
     const response = await page.request.post(`${baseUrl}/mcp`, {
@@ -138,6 +144,9 @@ test.describe('OAuth Authentication Middleware', () => {
       throw new Error('Authlete credentials not configured for testing');
     }
     
+    // クライアントIDを取得
+    const clientIdentifier = await getWorkingClientIdentifier(page);
+    
     // 間違ったスコープ（MCPに必要ないスコープ）でアクセストークンを作成
     const createTokenResponse = await page.request.post(`${baseUrlAuthlete}/api/${serviceId}/auth/token/create`, {
       headers: {
@@ -146,7 +155,8 @@ test.describe('OAuth Authentication Middleware', () => {
       },
       data: JSON.stringify({
         grantType: 'AUTHORIZATION_CODE',
-        clientId: 'confidential-test-client', // テスト用クライアントID
+        clientIdentifier: clientIdentifier, // クライアントID（エイリアス使用）
+        clientIdAliasUsed: true,
         subject: '1', // 存在するテストユーザーID
         scopes: ['mcp:tickets:read'], // 不十分なスコープ（writeスコープがない）
         resources: [`${baseUrl}/mcp`] // リソースは正しく指定
@@ -218,6 +228,9 @@ test.describe('OAuth Authentication Middleware', () => {
         throw new Error('Authlete credentials not configured for testing');
       }
       
+      // クライアントIDを取得
+      const clientIdentifier = await getWorkingClientIdentifier(page);
+      
       // resourcesパラメータなしでアクセストークンを作成
       const createTokenResponse = await page.request.post(`${baseUrlAuthlete}/api/${serviceId}/auth/token/create`, {
         headers: {
@@ -226,7 +239,8 @@ test.describe('OAuth Authentication Middleware', () => {
         },
         data: JSON.stringify({
           grantType: 'AUTHORIZATION_CODE',
-          clientId: 'confidential-test-client', // テスト用クライアントID
+          clientIdentifier: clientIdentifier, // クライアントID（エイリアス使用）
+          clientIdAliasUsed: true,
           subject: '1', // 存在するテストユーザーID
           scopes: ['mcp:tickets:read', 'mcp:tickets:write']
           // resourcesパラメータを意図的に省略
@@ -281,6 +295,9 @@ test.describe('OAuth Authentication Middleware', () => {
         throw new Error('Authlete credentials not configured for testing');
       }
       
+      // クライアントIDを取得
+      const clientIdentifier = await getWorkingClientIdentifier(page);
+      
       // resourcesパラメータ付きでアクセストークンを作成
       const createTokenResponse = await page.request.post(`${baseUrlAuthlete}/api/${serviceId}/auth/token/create`, {
         headers: {
@@ -289,7 +306,8 @@ test.describe('OAuth Authentication Middleware', () => {
         },
         data: JSON.stringify({
           grantType: 'AUTHORIZATION_CODE',
-          clientId: 'confidential-test-client', // テスト用クライアントID
+          clientIdentifier: clientIdentifier, // クライアントID（エイリアス使用）
+          clientIdAliasUsed: true,
           subject: '1', // 存在するテストユーザーID
           scopes: ['mcp:tickets:read', 'mcp:tickets:write'],
           resources: [`${baseUrl}/mcp`] // 正しいリソースを指定
