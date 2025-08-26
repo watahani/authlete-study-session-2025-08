@@ -40,7 +40,7 @@ test.describe('Debug OAuth Flow', () => {
     testLogger.info('6. Going to OAuth authorize endpoint...');
     const authUrl = new URL('https://localhost:3443/oauth/authorize');
     authUrl.searchParams.set('response_type', 'code');
-    authUrl.searchParams.set('client_id', '2701499366'); // 実際のAuthlete Client ID
+    authUrl.searchParams.set('client_id', 'confidential-test-client'); // 実際のAuthlete Client ID
     authUrl.searchParams.set('redirect_uri', 'https://localhost:3443/callback');
     authUrl.searchParams.set('scope', 'tickets:read tickets:write');
     authUrl.searchParams.set('state', 'test-state-123');
