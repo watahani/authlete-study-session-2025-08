@@ -29,7 +29,7 @@ function generateCodeChallenge(codeVerifier: string): string {
 // OAuth認可付きアクセストークンを取得するヘルパー関数
 async function getAccessToken(page: any): Promise<string> {
   const baseURL = getBaseURL(page);
-  const clientId = '3006291287';
+  const clientId = 'mcp-public-client';
   const redirectUri = 'https://localhost:3443/oauth/callback';
   
   const codeVerifier = generateCodeVerifier();
