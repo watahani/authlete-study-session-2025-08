@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('OAuth 2.1 MCP Integration Tests', () => {
   const baseUrl = 'https://localhost:3443';
-  const clientId = '3006291287';
+  const clientId = 'mcp-public-client';
   const redirectUri = 'http://localhost:6274/oauth/callback';
 
 
