@@ -146,7 +146,7 @@ test.describe('OAuth Authentication Middleware', () => {
       },
       data: JSON.stringify({
         grantType: 'AUTHORIZATION_CODE',
-        clientId: 'mcp-public-client', // テスト用クライアントID
+        clientId: 'confidential-test-client', // テスト用クライアントID
         subject: '1', // 存在するテストユーザーID
         scopes: ['mcp:tickets:read'], // 不十分なスコープ（writeスコープがない）
         resources: [`${baseUrl}/mcp`] // リソースは正しく指定
@@ -226,7 +226,7 @@ test.describe('OAuth Authentication Middleware', () => {
         },
         data: JSON.stringify({
           grantType: 'AUTHORIZATION_CODE',
-          clientId: 'mcp-public-client', // テスト用クライアントID
+          clientId: 'confidential-test-client', // テスト用クライアントID
           subject: '1', // 存在するテストユーザーID
           scopes: ['mcp:tickets:read', 'mcp:tickets:write']
           // resourcesパラメータを意図的に省略
@@ -289,7 +289,7 @@ test.describe('OAuth Authentication Middleware', () => {
         },
         data: JSON.stringify({
           grantType: 'AUTHORIZATION_CODE',
-          clientId: 'mcp-public-client', // テスト用クライアントID
+          clientId: 'confidential-test-client', // テスト用クライアントID
           subject: '1', // 存在するテストユーザーID
           scopes: ['mcp:tickets:read', 'mcp:tickets:write'],
           resources: [`${baseUrl}/mcp`] // 正しいリソースを指定
