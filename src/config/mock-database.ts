@@ -56,7 +56,7 @@ let users: MockUser[] = [];
 let tickets: MockTicket[] = [
   {
     id: 1,
-    title: 'Authlete勉強会 2025-08',
+    title: 'Authlete勉強会 2025-08-27',
     description: 'OAuth 2.1とMCPプロトコルについて学ぶ勉強会',
     price: 5000.00,
     available_seats: 50,
