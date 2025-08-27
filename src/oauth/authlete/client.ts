@@ -13,6 +13,7 @@ import {
   AuthleteError
 } from './types/index.js';
 import { AuthleteConfig } from '../config/authlete-config.js';
+import { oauthLogger } from '../../utils/logger.js';
 
 export class AuthleteClient implements AuthleteApiClient {
   private config: AuthleteConfig;
@@ -38,6 +39,12 @@ export class AuthleteClient implements AuthleteApiClient {
         body: JSON.stringify(body)
       });
 
+      oauthLogger.debug('Authlete API Request', {
+        url: url,
+        method: 'POST',
+        body: body
+      });
+
       const responseData = await response.json();
 
       if (!response.ok) {
@@ -58,7 +65,7 @@ export class AuthleteClient implements AuthleteApiClient {
         error.response = responseData as { resultCode?: string; resultMessage?: string };
         throw error;
       }
-
+      oauthLogger.debug('Authlete API Response', responseData);
       return responseData as T;
     } catch (error) {
       if (error instanceof Error && 'status' in error) {
@@ -76,6 +83,11 @@ export class AuthleteClient implements AuthleteApiClient {
   public async makeGetRequest<T>(endpoint: string): Promise<T> {
     const url = `${this.config.baseUrl}/api/${this.config.serviceId}${endpoint}`;
     
+    oauthLogger.debug('Authlete API Request', {
+      url: url,
+      method: 'GET'
+    });
+
     try {
       const response = await fetch(url, {
         method: 'GET',
@@ -104,6 +116,8 @@ export class AuthleteClient implements AuthleteApiClient {
         error.response = responseData as { resultCode?: string; resultMessage?: string };
         throw error;
       }
+
+      oauthLogger.debug('Authlete API Response', responseData);
 
       return responseData as T;
     } catch (error) {
@@ -152,6 +166,19 @@ export class AuthleteClient implements AuthleteApiClient {
         'Authorization': `Bearer ${this.config.serviceAccessToken}`,
         'Content-Type': 'application/json'
       }
+    });
+
+    oauthLogger.debug('service Id and token', {
+      serviceId: this.config.serviceId,
+      serviceAccessToken: this.config.serviceAccessToken
+    });
+
+    oauthLogger.debug('Authlete Service Configuration Response', {
+      status: response.status,
+      statusText: response.statusText,
+      responseData: response.body,
+      url: url,
+      method: 'GET'
     });
 
     if (!response.ok) {

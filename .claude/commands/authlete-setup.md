@@ -12,6 +12,18 @@
    - `ORGANIZATION_ACCESS_TOKEN` と `ORGANIZATION_ID` が設定されている
    - MCP が接続されていない場合は下記のセットアップ手順を実行
 
+### MCP サーバー接続確認
+
+MCP サーバーが正しく接続されているかを確認するには、以下のコマンドを実行します：
+
+```bash
+# Authlete サービス一覧を取得（接続テスト）
+mcp__authlete__list_services
+```
+
+**接続成功の場合**: サービス一覧のJSONレスポンスが返される
+**接続失敗の場合**: エラーメッセージまたは空のレスポンスが返される
+
 2. **プロジェクトファイル**
    - `examples/authlete-service-config.json`（サービス設定）
    - `examples/authlete-clients-config.json`（クライアント設定）
