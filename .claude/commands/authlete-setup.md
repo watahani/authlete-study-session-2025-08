@@ -30,7 +30,20 @@ mcp__authlete__list_services
 
 ## Authlete MCP のセットアップ手順
 
-MCP が接続されていない場合、以下のコマンドで Authlete MCP サーバーをセットアップしてください：
+### 事前準備：Authlete アカウントの作成
+
+MCP サーバーをセットアップする前に、Authlete アカウントが必要です：
+
+1. **Authlete コンソールにアクセス**: [https://console.authlete.com](https://console.authlete.com)
+2. **アカウント作成**: 新規サインアップを実行
+3. **組織の作成または選択**: アカウント作成後、組織を作成または既存の組織を選択
+4. **組織情報の取得**: 
+   - 組織のアクセストークン (`ORGANIZATION_ACCESS_TOKEN`)
+   - 組織ID (`ORGANIZATION_ID`)
+
+### MCP サーバーセットアップ
+
+Authlete アカウント準備完了後、以下のコマンドで Authlete MCP サーバーをセットアップしてください：
 
 ```bash
 claude mcp add authlete --scope local -- docker run --rm -i \
@@ -43,8 +56,12 @@ claude mcp add authlete --scope local -- docker run --rm -i \
 ```
 
 **環境変数の設定値**:
-- `YOUR_ORGANIZATION_ACCESS_TOKEN`: Authlete 組織のアクセストークン
-- `YOUR_ORGANIZATION_ID`: Authlete 組織ID
+- `YOUR_ORGANIZATION_ACCESS_TOKEN`: Authlete コンソールから取得した組織のアクセストークン
+- `YOUR_ORGANIZATION_ID`: Authlete コンソールから取得した組織ID
+
+**環境変数の取得方法**:
+- `ORGANIZATION_ACCESS_TOKEN`、`ORGANIZATION_ID`、`AUTHLETE_API_SERVER_ID` の取得方法は [Authlete Terraform ドキュメント](https://www.authlete.com/developers/terraform/starting/) を参照してください
+- 日本リージョンの場合 `AUTHLETE_API_URL` は `https://jp.authlete.com` を `AUTHLETE_API_SERVER_ID` は `53285` を使用します
 
 セットアップ完了後、Claude Code を再起動してからこのコマンドを再実行してください。
 
@@ -171,15 +188,28 @@ LOG_LEVEL=info
 EOF
 
 echo "✅ .env.template ファイルを生成しました"
-echo "📋 次の手順:"
+echo ""
+echo "🎉 Authlete セットアップ完了！"
+echo ""
+echo "📋 Next Steps:"
 echo "   1. Authleteコンソール (https://console.authlete.com) にログイン"
 echo "   2. Authlete MCP に設定した組織を選択"
 echo "   3. サービス「Ticket Service OAuth Server」を選択"
 echo "   4. 「サービス設定」→「基本設定」→「詳細設定」→ブレードからサービスアクセストークンを取得"
 echo "   5. .env.template を .env にコピーして AUTHLETE_SERVICE_ACCESS_TOKEN を設定"
-echo "   6. テスト実行: npm run test:oauth"
 echo ""
-echo "🎉 Authlete セットアップ完了！"
+echo "🔒 TLS証明書の作成:"
+echo "   6. npm run generate-ssl"
+echo ""
+echo "🚀 サーバー起動:"
+echo "   7. npm run dev"
+echo ""
+echo "🧪 MCP Introspectorでのテスト:"
+echo "   8. NODE_EXTRA_CA_CERTS=\"\$PWD/ssl/localhost.crt\" npx @modelcontextprotocol/inspector https://localhost:3443/mcp"
+echo ""
+echo "💡 OAuth無効モードでのテスト（開発時）:"
+echo "   - サーバー: MCP_OAUTH_ENABLED=false npm run dev"
+echo "   - Introspector: NODE_EXTRA_CA_CERTS=\"\$PWD/ssl/localhost.crt\" npx @modelcontextprotocol/inspector https://localhost:3443/mcp"
 ```
 
 ## トラブルシューティング
@@ -230,6 +260,86 @@ echo "AUTHLETE_SERVICE_ACCESS_TOKEN: $AUTHLETE_SERVICE_ACCESS_TOKEN"
 | `SERVICE_API_KEY` | クライアント管理API呼び出し | サービス作成時のレスポンスから取得 |
 | `AUTHLETE_SERVICE_ACCESS_TOKEN` | OAuth認証処理 | Authleteコンソールから手動取得 |
 | `ORGANIZATION_ACCESS_TOKEN` | MCP組織管理 | 組織管理者から取得 |
+
+## 📋 セットアップ完了後の Next Steps
+
+Authlete MCP サーバーのセットアップが完了したら、以下の手順でアプリケーションを起動・テストしてください：
+
+### 1. 環境変数の最終設定
+
+```bash
+# .env.template を .env にコピー
+cp .env.template .env
+
+# .env ファイルを編集して AUTHLETE_SERVICE_ACCESS_TOKEN を設定
+# この値は Authleteコンソールから別途取得が必要です
+```
+
+### 2. TLS証明書の作成
+
+HTTPS必須の認可サーバーのため、自己署名証明書を作成：
+
+```bash
+npm run generate-ssl
+```
+
+### 3. サーバーの起動
+
+```bash
+# HTTPS + OAuth + MCP 統合モード（推奨）
+npm run dev
+
+# デバッグログ有効化（詳細な情報が必要な場合）
+LOG_LEVEL=debug npm run dev
+```
+
+### 4. MCP Introspector でのテスト
+
+OAuth認証フローとMCPツールの動作確認：
+
+```bash
+# 自己署名証明書を認識してMCP Introspectorを起動
+NODE_EXTRA_CA_CERTS="$PWD/ssl/localhost.crt" \
+npx @modelcontextprotocol/inspector https://localhost:3443/mcp
+```
+
+**テスト手順**:
+1. Introspector が Dynamic Client Registration を自動実行
+2. ブラウザで OAuth 認可フローが開始
+3. 認証完了後、MCPツールが利用可能になる
+
+**利用可能なツール**:
+- `list_tickets` - チケット一覧取得
+- `search_tickets` - チケット検索  
+- `reserve_ticket` - チケット予約
+- `cancel_reservation` - 予約キャンセル
+- `get_user_reservations` - 予約履歴取得
+
+### 5. 開発・テスト時の OAuth 無効モード
+
+開発時は認証を無効化して簡単にテスト可能：
+
+```bash
+# OAuth無効モードでサーバー起動
+MCP_OAUTH_ENABLED=false npm run dev
+
+# 認証なしでIntrospector接続
+NODE_EXTRA_CA_CERTS="$PWD/ssl/localhost.crt" \
+npx @modelcontextprotocol/inspector https://localhost:3443/mcp
+```
+
+### 6. 自動テストの実行
+
+```bash
+# 全テスト実行
+npx playwright test
+
+# MCP サーバーテスト（OAuth無効）
+MCP_OAUTH_ENABLED=false npx playwright test tests/mcp-server.spec.ts
+
+# OAuth統合テスト（実際のトークンフロー）
+npx playwright test tests/oauth-token-flow.spec.ts
+```
 
 ## 参考情報
 
