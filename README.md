@@ -40,9 +40,6 @@
 # 依存関係のインストール
 npm install
 
-# データベースの起動
-docker-compose up -d
-
 # SSL証明書の生成（初回のみ）
 npm run generate-ssl
 
@@ -108,7 +105,17 @@ npm run dev
 LOG_LEVEL=debug npm run dev
 ```
 
-### 3. アクセス
+### 3. MCP Introspector での動作確認
+
+アプリケーション起動後、MCP Introspector を使用して動作確認できます：
+
+```bash
+# 自己署名証明書を認識してMCP Introspectorを起動
+NODE_EXTRA_CA_CERTS="$PWD/ssl/localhost.crt" \
+npx @modelcontextprotocol/inspector https://localhost:3443/mcp
+```
+
+### 4. アクセス
 
 - **Webアプリケーション**: https://localhost:3443
 - **MCP サーバー**: https://localhost:3443/mcp
@@ -455,34 +462,23 @@ TEST_LOG_LEVEL=warn            # テストログレベル
 AUTHLETE_SERVICE_ACCESS_TOKEN=your-service-token  # Authlete Service Access Token
 AUTHLETE_SERVICE_ID=your-service-id               # Authlete Service ID  
 AUTHLETE_BASE_URL=https://jp.authlete.com         # Authlete API Base URL
-
-# データベース設定（MySQL使用時）
-DB_HOST=localhost
-DB_PORT=3306
-DB_NAME=ticket_service
-DB_USER=root
-DB_PASSWORD=password
 ```
 
 ## 📊 データベース
 
 ### 使用技術
-- **本番**: MySQL 8.0
-- **テスト**: モックデータベース（メモリ内）
+- **現在**: モックデータベース（メモリ内）
+- **データソース**: プリロードされたサンプルデータ
 
-### テーブル構造
+### データ構造
 - `users` - ユーザー情報（id, username, password, email, created_at）
 - `tickets` - チケット情報（id, title, description, price, available_seats, total_seats, event_date, created_at）
 - `reservations` - 予約情報（id, user_id, ticket_id, seats_reserved, reservation_date, status）
 
-### 初期データ
-```sql
--- サンプルチケット
-INSERT INTO tickets (title, description, price, available_seats, total_seats, event_date) VALUES
-('Authlete勉強会 2025-08', 'OAuth 2.1とMCPプロトコルについて学ぶ勉強会', 5000.00, 50, 50, '2025-08-15 14:00:00'),
-('Node.js ワークショップ', 'Express.jsとTypeScriptを使った開発実践', 8000.00, 30, 30, '2025-08-20 10:00:00'),
-('セキュリティ入門セミナー', '認証・認可の基礎を学ぶセミナー', 3000.00, 100, 100, '2025-08-25 13:00:00');
-```
+### サンプルデータ
+- Authlete勉強会 2025-08 (¥5,000, 50席)
+- Node.js ワークショップ (¥8,000, 30席)
+- セキュリティ入門セミナー (¥3,000, 100席)
 
 ## 🔒 HTTPS 証明書設定
 
@@ -771,13 +767,22 @@ Authlete サービス・クライアントの自動セットアップガイド�
 
 ### Authlete 設定復元
 
+**Claude Code と Authlete MCP を使用する場合:**
+
 現在の Authlete サービス・クライアント設定を MCP で簡単に再作成できるサンプルファイルを提供しています：
 
 - **[Authlete MCP セットアップガイド](docs/authlete-setup.md)** - Claude Code への MCP 追加と設定復元手順
 - **[サービス設定サンプル](examples/authlete-service-config.json)** - OAuth 2.1 サービス設定のJSONテンプレート  
 - **[クライアント設定サンプル](examples/authlete-clients-config.json)** - Confidential/Public クライアント設定のJSONテンプレート
 
-これらのファイルを使用することで、Authlete MCP を通じて同一の設定を素早く復元できます。
+**Claude Code と Authlete MCP を使用しない場合:**
+
+`examples/` フォルダのサンプル設定を参考に、Authlete コンソールから手動でサービスとクライアントを作成する必要があります：
+
+1. [Authlete Console](https://au1.authlete.com/) でサービス作成
+2. OAuth 2.1 設定（PKCE必須、認可コードフロー有効）
+3. クライアント作成（パブリッククライアントとコンフィデンシャルクライアント）
+4. 適切なスコープとリダイレクトURIの設定
 
 ---
 
