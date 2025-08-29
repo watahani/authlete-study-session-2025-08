@@ -34,21 +34,11 @@
 
 ## 🚀 クイックスタート
 
-### 1. 環境準備
+### 1. Authlete セットアップ
 
-```bash
-# 依存関係のインストール
-npm install
+まず、Authlete でサービスとクライアントを設定します。
 
-# SSL証明書の生成（初回のみ）
-npm run generate-ssl
-
-# 環境変数の設定
-cp .env.example .env
-# .env ファイルを編集してAuthlete認証情報を設定
-```
-
-#### Claude Code ユーザー向け
+#### Claude Code ユーザー向け（推奨）
 
 Claude Code を使用している場合、自動セットアップコマンドが利用できます：
 
@@ -63,7 +53,7 @@ Claude Code を使用している場合、自動セットアップコマンド�
 
 コマンド実行後は、Authleteコンソールからサービスアクセストークンを取得して`.env`ファイルに設定するだけで完了です。
 
-スラッシュコマンドの実行には Authlete MCP サーバーのインストールが必要です。
+**前提条件**: Authlete MCP サーバーのインストールが必要です。
 
 #### Authlete MCP サーバーの Claude Code への追加
 
@@ -95,7 +85,32 @@ claude mcp add authlete --scope global -- docker run --rm -i \
 - `ORGANIZATION_ACCESS_TOKEN`、`ORGANIZATION_ID`、`AUTHLETE_API_SERVER_ID` の取得方法は [Authlete Terraform ドキュメント](https://www.authlete.com/developers/terraform/starting/) を参照してください
 - 日本リージョンの場合 `AUTHLETE_API_URL` は `https://jp.authlete.com` を `AUTHLETE_API_SERVER_ID` は `53285` を使用します
 
-### 2. アプリケーションの起動
+#### 手動セットアップ（Claude Code なしの場合）
+
+Claude Code を使用していない場合は、jq と curl を使用して手動でサービスとクライアントを作成できます。
+
+📋 **詳細な手順**: [docs/manual-setup.md](docs/manual-setup.md)
+
+**概要:**
+1. Authlete Terraform ドキュメントから認証情報を取得
+2. examples/ の設定ファイルを使用してサービス作成
+3. OAuth クライアント（Confidential/Public）を作成
+4. 環境変数ファイル（.env）を自動生成
+
+### 2. 環境準備
+
+```bash
+# 依存関係のインストール
+npm install
+
+# SSL証明書の生成（初回のみ）
+npm run generate-ssl
+
+# 環境変数の設定（Authlete セットアップ完了後）
+# .env ファイルに AUTHLETE_SERVICE_ACCESS_TOKEN を設定
+```
+
+### 3. アプリケーションの起動
 
 ```bash
 # HTTPS + OAuth + MCP 統合モード（推奨）
@@ -105,7 +120,7 @@ npm run dev
 LOG_LEVEL=debug npm run dev
 ```
 
-### 3. MCP Introspector での動作確認
+### 4. MCP Introspector での動作確認
 
 アプリケーション起動後、MCP Introspector を使用して動作確認できます：
 
@@ -115,7 +130,7 @@ NODE_EXTRA_CA_CERTS="$PWD/ssl/localhost.crt" \
 npx @modelcontextprotocol/inspector https://localhost:3443/mcp
 ```
 
-### 4. アクセス
+### 5. アクセス
 
 - **Webアプリケーション**: https://localhost:3443
 - **MCP サーバー**: https://localhost:3443/mcp
