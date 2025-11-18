@@ -16,18 +16,10 @@ export const getAuthorizationServerMetadata = async (req: Request, res: Response
     // このAPIは成功時にHTTP 200で直接OpenID Provider Metadataを返す
     const serviceMetadata = await client.callServiceConfigurationApi();
     
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-
-    // Authlete から取得したメタデータにMCP向けスコープを追加
-    const extendedMetadata = {
-      ...serviceMetadata,
-      "code_challenge_methods_supported": ["S256"]
-    };
-
     res.set('Content-Type', 'application/json');
     res.set('Cache-Control', 'public, max-age=3600'); // 1時間キャッシュ
     res.set('Access-Control-Allow-Origin', '*'); // CORS for discovery
-    res.json(extendedMetadata);
+    res.json(serviceMetadata);
     
   } catch (error) {
     oauthLogger.error('Authorization server metadata error', error);
