@@ -126,6 +126,7 @@ test.describe('OAuth 2.1 MCP Integration Tests', () => {
     expect(wwwAuth).toContain('Bearer realm=');
     expect(wwwAuth).toContain('error="invalid_request"');
     expect(wwwAuth).toContain('resource_metadata=');
+    expect(wwwAuth).toContain('scope="mcp:tickets:read"');
     
     // resource_metadataのURLが正しいことを確認
     const resourceMetadataMatch = wwwAuth.match(/resource_metadata="([^"]+)"/);
