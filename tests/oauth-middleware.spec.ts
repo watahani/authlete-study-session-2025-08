@@ -28,6 +28,7 @@ test.describe('OAuth Authentication Middleware', () => {
     expect(response.headers()['www-authenticate']).toContain('Bearer realm=');
     expect(response.headers()['www-authenticate']).toContain('error="invalid_request"');
     expect(response.headers()['www-authenticate']).toContain('resource_metadata=');
+    expect(response.headers()['www-authenticate']).toContain('scope="mcp:tickets:read"');
     
     const error = await response.json();
     expect(error.error).toBe('invalid_request');
@@ -50,6 +51,7 @@ test.describe('OAuth Authentication Middleware', () => {
     expect(response.headers()['www-authenticate']).toContain('Bearer realm=');
     expect(response.headers()['www-authenticate']).toContain('error="invalid_token"');
     expect(response.headers()['www-authenticate']).toContain('resource_metadata=');
+    expect(response.headers()['www-authenticate']).toContain('scope="mcp:tickets:read"');
     
     const error = await response.json();
     expect(error.error).toBe('invalid_token');
@@ -73,6 +75,7 @@ test.describe('OAuth Authentication Middleware', () => {
     expect(response.status()).toBe(401);
     expect(response.headers()['www-authenticate']).toContain('Bearer realm=');
     expect(response.headers()['www-authenticate']).toContain('error="invalid_request"');
+    expect(response.headers()['www-authenticate']).toContain('scope="mcp:tickets:read"');
   });
 
   test('Bearer token in request body is rejected (OAuth 2.1 compliance)', async ({ page }) => {
@@ -93,6 +96,7 @@ test.describe('OAuth Authentication Middleware', () => {
     expect(response.status()).toBe(401);
     expect(response.headers()['www-authenticate']).toContain('Bearer realm=');
     expect(response.headers()['www-authenticate']).toContain('error="invalid_request"');
+    expect(response.headers()['www-authenticate']).toContain('scope="mcp:tickets:read"');
   });
 
   test('CORS headers are present for MCP endpoint OPTIONS request', async ({ page }) => {
@@ -132,6 +136,7 @@ test.describe('OAuth Authentication Middleware', () => {
     expect(wwwAuth).toContain(`realm="${baseUrl}"`);
     expect(wwwAuth).toContain('error="invalid_request"');
     expect(wwwAuth).toContain('error_description="Access token is required"');
+    expect(wwwAuth).toContain('scope="mcp:tickets:read"');
   });
 
   test('Required scope validation works', async ({ page }) => {

@@ -49,10 +49,13 @@ test.describe('OAuth 2.0 Metadata Endpoints', () => {
     
     // OAuth 2.1準拠のBearer token方式
     expect(metadata.bearer_methods_supported).toEqual(['header']);
-    
-    // イントロスペクションとリボケーションエンドポイント
-    expect(metadata.introspection_endpoint).toBe(`${baseUrl}/oauth/introspect`);
-    expect(metadata.revocation_endpoint).toBe(`${baseUrl}/oauth/revoke`);
+
+    // リソースのドキュメントとポリシーURI
+    expect(metadata.resource_documentation).toBe(`${baseUrl}/docs/mcp`);
+    expect(metadata.resource_policy_uri).toBe(`${baseUrl}/policy/mcp`);
+
+    // authorization_detailsのタイプ
+    expect(metadata.authorization_details_types_supported).toContain('ticket-reservation');
   });
 
   test('MCP-specific Protected Resource Metadata endpoint works', async ({ page }) => {
@@ -63,8 +66,9 @@ test.describe('OAuth 2.0 Metadata Endpoints', () => {
     
     const metadata = await response.json();
     expect(metadata.resource).toBe(`${baseUrl}/mcp`);
+    expect(metadata.authorization_servers).toContain(baseUrl);
     expect(metadata.scopes_supported).toContain('mcp:tickets:read');
-    expect(metadata.scopes_supported).toContain('mcp:tickets:write');
+    expect(metadata.authorization_details_types_supported).toContain('ticket-reservation');
   });
 
   test('CORS headers are present for Authorization Server metadata', async ({ page }) => {

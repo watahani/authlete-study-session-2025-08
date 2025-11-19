@@ -32,6 +32,13 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
     requireSSL = true
   } = options;
 
+  // RFC 6750 Section 3 (https://www.rfc-editor.org/rfc/rfc6750#page-7)
+  // "The \"scope\" attribute is a space-delimited list of case-sensitive scope values
+  // indicating the required scope of the access token for accessing the requested resource."
+  const scopeAttributeSuffix = requiredScopes.length > 0
+    ? `, scope="${requiredScopes.join(' ')}"`
+    : '';
+
   return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       // HTTPS必須チェック
@@ -51,7 +58,8 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
         const wwwAuth = `Bearer realm="${baseUrl}", ` +
                        `error="invalid_request", ` +
                        `error_description="Access token is required", ` +
-                       `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource/mcp"`;
+                       `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource/mcp"` +
+                       scopeAttributeSuffix;
         
         res.set('WWW-Authenticate', wwwAuth);
         return res.status(401).json({
@@ -95,7 +103,8 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
           const wwwAuthInvalid = `Bearer realm="${baseUrl}", ` +
                                `error="invalid_token", ` +
                                `error_description="The access token provided is expired, revoked, malformed, or invalid", ` +
-                               `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`;
+                               `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"` +
+                               scopeAttributeSuffix;
           
           res.set('WWW-Authenticate', wwwAuthInvalid);
           return res.status(401).json({
@@ -107,8 +116,8 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
           const wwwAuthScope = `Bearer realm="${baseUrl}", ` +
                              `error="insufficient_scope", ` +
                              `error_description="The request requires higher privileges than provided", ` +
-                             `scope="${requiredScopes.join(' ')}", ` +
-                             `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`;
+                             `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"` +
+                             scopeAttributeSuffix;
           
           res.set('WWW-Authenticate', wwwAuthScope);
           return res.status(403).json({
@@ -129,7 +138,8 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
             const wwwAuthResource = `Bearer realm="${baseUrl}", ` +
                                   `error="invalid_token", ` +
                                   `error_description="Access token does not include required resource", ` +
-                                  `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`;
+                                  `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"` +
+                                  scopeAttributeSuffix;
             
             res.set('WWW-Authenticate', wwwAuthResource);
             return res.status(401).json({
