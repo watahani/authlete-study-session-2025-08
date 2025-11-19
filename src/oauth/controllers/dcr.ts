@@ -80,7 +80,16 @@ export class DCRController {
             clientId: response.client?.clientIdAlias || response.client?.clientId,
             clientName: response.client?.clientName
           });
-          res.status(201).setHeader('Content-Type', 'application/json').send(response.responseContent);
+
+          var dcrResponse = JSON.parse(response.responseContent);
+
+          //remove client_secret from response if public client.
+          //some MCP client may not respect token_endpoint_auth_method setting and expect no client_secret in response.
+          if (dcrResponse.token_endpoint_auth_method === 'none') {
+            delete dcrResponse.client_secret;
+          }
+
+          res.status(201).setHeader('Content-Type', 'application/json').send(dcrResponse);
           break;
 
         case 'BAD_REQUEST':

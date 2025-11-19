@@ -163,6 +163,42 @@ test.describe('Dynamic Client Registration (DCR)', () => {
     
     testLogger.info('Step 5 - Access to deleted client correctly failed');
   });
+
+  test('should omit client_secret for public clients', async ({ request }) => {
+    const clientMetadata = {
+      client_name: 'DCR Public Client',
+      redirect_uris: ['https://example.com/callback'],
+      grant_types: ['authorization_code'],
+      response_types: ['code'],
+      scope: 'mcp:tickets:read',
+      token_endpoint_auth_method: 'none',
+      application_type: 'web'
+    };
+
+    const registrationResponse = await request.post(`${BASE_URL}/oauth/register`, {
+      data: clientMetadata,
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      ignoreHTTPSErrors: true
+    });
+
+    expect(registrationResponse.status()).toBe(201);
+    const responseData = await registrationResponse.json();
+
+    expect(responseData.token_endpoint_auth_method).toBe('none');
+    expect(responseData.client_secret).toBeUndefined();
+    expect(responseData.registration_access_token).toBeDefined();
+
+    const deleteResponse = await request.delete(`${BASE_URL}/oauth/register/${responseData.client_id}`, {
+      headers: {
+        'Authorization': `Bearer ${responseData.registration_access_token}`
+      },
+      ignoreHTTPSErrors: true
+    });
+
+    expect(deleteResponse.status()).toBe(204);
+  });
 });
 
 test.describe('DCR Error Handling (Independent Tests)', () => {
