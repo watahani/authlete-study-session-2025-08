@@ -14,10 +14,10 @@ export const getProtectedResourceMetadata = async (req: Request, res: Response) 
       resource: `${baseUrl}/mcp`, // MCPサーバーのリソースURL
       authorization_servers: [baseUrl], // この認可サーバー自身を指定
       
-      // Optional fields
+      // Recommended metadata
       scopes_supported: [
-        'mcp:tickets:read',  // MCP経由でのチケット情報読み取り
-        'mcp:tickets:write' // MCP経由でのチケット操作
+        'mcp:tickets:read',
+        'mcp:tickets:write'
       ],
       
       // Bearer token methods (RFC 6750, OAuth 2.1 compliant)
@@ -29,18 +29,9 @@ export const getProtectedResourceMetadata = async (req: Request, res: Response) 
       resource_documentation: `${baseUrl}/docs/mcp`,
       resource_policy_uri: `${baseUrl}/policy/mcp`,
       
-      // Token introspection support (RFC 7662) 
-      introspection_endpoint: `${baseUrl}/oauth/introspect`,
-      introspection_endpoint_auth_methods_supported: [
-        'client_secret_basic',
-        'client_secret_post'
-      ],
-      
-      // Token revocation support (RFC 7009)
-      revocation_endpoint: `${baseUrl}/oauth/revoke`,
-      revocation_endpoint_auth_methods_supported: [
-        'client_secret_basic',
-        'client_secret_post'
+      // Authorization details type
+      authorization_details_types_supported: [
+        'ticket-reservation'
       ]
     };
 

@@ -23,11 +23,13 @@ test.describe('OAuth 2.1 MCP Integration Tests', () => {
     expect(protectedResourceMetadata.resource).toBe(`${baseUrl}/mcp`);
     expect(protectedResourceMetadata.scopes_supported).toContain('mcp:tickets:read');
     expect(protectedResourceMetadata.scopes_supported).toContain('mcp:tickets:write');
+    expect(protectedResourceMetadata.bearer_methods_supported).toEqual(['header']);
     
     // 3. メタデータの整合性確認
     expect(protectedResourceMetadata.authorization_servers).toContain(authServerMetadata.issuer);
-    expect(protectedResourceMetadata.introspection_endpoint).toBe(authServerMetadata.introspection_endpoint);
-    expect(protectedResourceMetadata.revocation_endpoint).toBe(authServerMetadata.revocation_endpoint);
+    expect(protectedResourceMetadata.resource_documentation).toBe(`${baseUrl}/docs/mcp`);
+    expect(protectedResourceMetadata.resource_policy_uri).toBe(`${baseUrl}/policy/mcp`);
+    expect(protectedResourceMetadata.authorization_details_types_supported).toContain('ticket-reservation');
   });
 
   test('Authorization endpoint handles PKCE correctly', async ({ page }) => {
@@ -160,7 +162,9 @@ test.describe('OAuth 2.1 MCP Integration Tests', () => {
     const metadataResponse = await page.request.get(`${baseUrl}/.well-known/oauth-protected-resource/mcp`);
     const metadata = await metadataResponse.json();
     
+    expect(metadata.resource).toBe(`${baseUrl}/mcp`);
     expect(metadata.scopes_supported).toContain('mcp:tickets:read');
+    expect(metadata.authorization_details_types_supported).toContain('ticket-reservation');
     expect(metadata.bearer_methods_supported).toEqual(['header']);
   });
 
