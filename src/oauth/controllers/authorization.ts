@@ -1,14 +1,10 @@
 import { Request, Response } from 'express';
-import { AuthleteClient } from '../authlete/client.js';
-import { AuthorizationRequest } from '../authlete/types/index.js';
+import { Authlete } from '@authlete/typescript-sdk';
+import { AuthorizationRequest, AuthorizationResponse } from '@authlete/typescript-sdk/models';
 import { oauthLogger } from '../../utils/logger.js';
 
 export class AuthorizationController {
-  private authleteClient: AuthleteClient;
-
-  constructor(authleteClient: AuthleteClient) {
-    this.authleteClient = authleteClient;
-  }
+  constructor(private authlete: Authlete, private serviceId: string) {}
 
   async handleAuthorizationRequest(req: Request, res: Response): Promise<void> {
     try {
@@ -24,7 +20,10 @@ export class AuthorizationController {
         parameters
       };
 
-      const response = await this.authleteClient.authorize(authorizationRequest);
+      const response = await this.authlete.authorization.processRequest({
+        serviceId: this.serviceId,
+        authorizationRequest
+      });
 
       switch (response.action) {
         case 'INTERNAL_SERVER_ERROR':
@@ -94,7 +93,7 @@ export class AuthorizationController {
     });
   }
 
-  private async handleInteraction(req: Request, res: Response, response: any): Promise<void> {
+  private async handleInteraction(req: Request, res: Response, response: AuthorizationResponse): Promise<void> {
     if (!response.ticket) {
       res.status(500).json({
         error: 'server_error',
@@ -118,9 +117,10 @@ export class AuthorizationController {
     let clientWithAuthDetails = response.client;
     if (response.client?.clientId) {
       try {
-        const clientDetails = await this.authleteClient.makeGetRequest<any>(
-          `/client/get/${response.client.clientId}`
-        );
+        const clientDetails = await this.authlete.client.get({
+          serviceId: this.serviceId,
+          clientId: response.client.clientId.toString()
+        });
         
         oauthLogger.debug('Client details from client/get API', {
           clientId: response.client.clientId,

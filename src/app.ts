@@ -190,13 +190,17 @@ const startServer = async (): Promise<void> => {
     await mcpServerManager.initialize();
 
     // MCP ルートを追加
+    const oauthMiddleware = MCP_OAUTH_ENABLED
+      ? oauthAuthentication({
+          requiredScopes: ['mcp:tickets:read'],
+          requireSSL: true
+        })
+      : undefined;
+
     const mcpRoutes = createMCPRoutes({
       mcpServerManager,
       oauthEnabled: MCP_OAUTH_ENABLED,
-      oauthMiddleware: oauthAuthentication({
-        requiredScopes: ['mcp:tickets:read'],
-        requireSSL: true
-      })
+      oauthMiddleware
     });
 
     app.use('/', mcpRoutes);

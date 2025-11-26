@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { createAuthleteClient } from '../authlete/client.js';
-import { getAuthleteConfig } from '../config/authlete-config.js';
-import { IntrospectionRequest, AuthorizationDetail } from '../authlete/types/index.js';
+import { IntrospectionRequest, AuthorizationDetailsElement } from '@authlete/typescript-sdk/models';
+import { getAuthleteContext } from '../authlete-sdk.js';
 import { oauthLogger } from '../../utils/logger.js';
 
 interface OAuthValidationOptions {
@@ -18,7 +17,7 @@ interface AuthenticatedRequest extends Request {
     scopes: string[];
     username?: string;
     exp?: number;
-    authorizationDetails?: { elements: AuthorizationDetail[] }; // オブジェクト形式
+    authorizationDetails?: { elements: AuthorizationDetailsElement[] }; // オブジェクト形式
   };
 }
 
@@ -31,6 +30,8 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
     requiredScopes = [],
     requireSSL = true
   } = options;
+
+  const { authlete, serviceId } = getAuthleteContext();
 
   // RFC 6750 Section 3 (https://www.rfc-editor.org/rfc/rfc6750#page-7)
   // "The \"scope\" attribute is a space-delimited list of case-sensitive scope values
@@ -69,14 +70,15 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
       }
 
       // Authlete Introspection APIでトークンを検証
-      const authleteConfig = getAuthleteConfig();
-      const client = createAuthleteClient(authleteConfig);
       const introspectionRequest: IntrospectionRequest = {
         token,
         scopes: requiredScopes
       };
 
-      const introspectionResponse = await client.introspect(introspectionRequest);
+      const introspectionResponse = await authlete.introspection.process({
+        serviceId,
+        introspectionRequest
+      });
       
       // デバッグログ: Introspection レスポンスを出力
       oauthLogger.debug('Authlete introspection response', introspectionResponse);
@@ -149,6 +151,10 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
           }
           
           // トークンが有効 - リクエストにOAuth情報を追加
+          const authorizationDetails = introspectionResponse.authorizationDetails?.elements
+            ? { elements: introspectionResponse.authorizationDetails.elements }
+            : undefined;
+
           req.oauth = {
             token: token,
             subject: introspectionResponse.subject || '',
@@ -156,7 +162,7 @@ export const oauthAuthentication = (options: OAuthValidationOptions = {}) => {
             scopes: introspectionResponse.scopes || [],
             username: introspectionResponse.subject, // subject をユーザー識別子として使用
             exp: introspectionResponse.expiresAt,
-            authorizationDetails: introspectionResponse.authorizationDetails // 既にオブジェクト形式
+            authorizationDetails
           };
 
           // デバッグログ: authorization detailsがある場合はログ出力

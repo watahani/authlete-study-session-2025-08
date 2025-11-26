@@ -1,14 +1,10 @@
 import { Request, Response } from 'express';
-import { AuthleteClient } from '../authlete/client.js';
-import { TokenRequest } from '../authlete/types/index.js';
+import { Authlete } from '@authlete/typescript-sdk';
+import { TokenRequest } from '@authlete/typescript-sdk/models';
 import { oauthLogger } from '../../utils/logger.js';
 
 export class TokenController {
-  private authleteClient: AuthleteClient;
-
-  constructor(authleteClient: AuthleteClient) {
-    this.authleteClient = authleteClient;
-  }
+  constructor(private authlete: Authlete, private serviceId: string) {}
 
   async handleTokenRequest(req: Request, res: Response): Promise<void> {
     try {
@@ -22,7 +18,10 @@ export class TokenController {
         clientSecret
       };
 
-      const response = await this.authleteClient.token(tokenRequest);
+      const response = await this.authlete.token.process({
+        serviceId: this.serviceId,
+        tokenRequest
+      });
 
       // デバッグログ: authorizationDetailsの確認
       if (response.authorizationDetails) {
