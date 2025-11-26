@@ -1,51 +1,58 @@
 import express from 'express';
+import { Authlete } from '@authlete/typescript-sdk';
+import {
+  AuthorizationDetailsElement,
+  AuthorizationFailRequest,
+  AuthorizationFailRequestReason,
+  AuthorizationIssueRequest
+} from '@authlete/typescript-sdk/models';
 import { AuthorizationController } from '../controllers/authorization.js';
 import { TokenController } from '../controllers/token.js';
 import { IntrospectionController } from '../controllers/introspection.js';
 import { DCRController } from '../controllers/dcr.js';
-import { createAuthleteClient, AuthleteClient } from '../authlete/client.js';
-import { getAuthleteConfig } from '../config/authlete-config.js';
 import { oauthLogger } from '../../utils/logger.js';
+import { getAuthleteContext } from '../authlete-sdk.js';
 
 const router = express.Router();
 
 // 遅延初期化用の変数
-let authleteClient: AuthleteClient | null = null;
+let authlete: Authlete | null = null;
+let serviceId: string | null = null;
 let authorizationController: AuthorizationController | null = null;
 let tokenController: TokenController | null = null;
 let introspectionController: IntrospectionController | null = null;
 let dcrController: DCRController | null = null;
 
 // Authleteクライアントの遅延初期化
-function getAuthleteClient(): AuthleteClient {
-  if (!authleteClient) {
-    const authleteConfig = getAuthleteConfig();
-    authleteClient = createAuthleteClient(authleteConfig);
-    authorizationController = new AuthorizationController(authleteClient);
-    tokenController = new TokenController(authleteClient);
-    introspectionController = new IntrospectionController(authleteClient);
-    dcrController = new DCRController(authleteClient);
+function ensureAuthlete(): void {
+  if (!authlete) {
+    const context = getAuthleteContext();
+    authlete = context.authlete;
+    serviceId = context.serviceId;
+    authorizationController = new AuthorizationController(authlete, serviceId);
+    tokenController = new TokenController(authlete, serviceId);
+    introspectionController = new IntrospectionController(authlete, serviceId);
+    dcrController = new DCRController(authlete, serviceId);
   }
-  return authleteClient;
 }
 
 function getAuthorizationController(): AuthorizationController {
-  getAuthleteClient(); // 初期化を確実に行う
+  ensureAuthlete(); // 初期化を確実に行う
   return authorizationController!;
 }
 
 function getTokenController(): TokenController {
-  getAuthleteClient(); // 初期化を確実に行う
+  ensureAuthlete(); // 初期化を確実に行う
   return tokenController!;
 }
 
 function getIntrospectionController(): IntrospectionController {
-  getAuthleteClient(); // 初期化を確実に行う
+  ensureAuthlete(); // 初期化を確実に行う
   return introspectionController!;
 }
 
 function getDCRController(): DCRController {
-  getAuthleteClient(); // 初期化を確実に行う
+  ensureAuthlete(); // 初期化を確実に行う
   return dcrController!;
 }
 
@@ -305,14 +312,18 @@ router.post('/authorize/decision', async (req, res) => {
     // セッションからticketを取得
     const ticket = oauthTicket;
 
+    ensureAuthlete();
+
+    if (!authlete || !serviceId) {
+      oauthLogger.error('Authlete SDK not initialized');
+      return res.status(500).json({
+        error: 'server_error',
+        error_description: 'Authlete SDK not initialized'
+      });
+    }
+
     if (authorized === 'true') {
-      const issueParams: {
-        ticket: string;
-        subject: string;
-        authorizationDetails?: {
-          elements: any[];
-        };
-      } = {
+      const issueParams: AuthorizationIssueRequest = {
         ticket,
         subject: user.id.toString() // ユーザーIDを文字列として設定
       };
@@ -320,7 +331,7 @@ router.post('/authorize/decision', async (req, res) => {
       // authorizationDetailsの処理
       if (authorizationDetailsJson && authorizationDetailsJson.trim() !== '') {
         try {
-          const authorizationDetailsArray = JSON.parse(authorizationDetailsJson);
+          const authorizationDetailsArray: AuthorizationDetailsElement[] = JSON.parse(authorizationDetailsJson);
           issueParams.authorizationDetails = {
             elements: authorizationDetailsArray // elements配列として設定
           };
@@ -344,7 +355,10 @@ router.post('/authorize/decision', async (req, res) => {
         hasAuthorizationDetails: !!issueParams.authorizationDetails
       });
       
-      const issueResponse = await (getAuthleteClient() as any).makeRequest('/auth/authorization/issue', issueParams);
+      const issueResponse = await authlete.authorization.issue({
+        serviceId,
+        authorizationIssueRequest: issueParams
+      });
       
       // デバッグログ: issue エンドポイントのレスポンス
       oauthLogger.debug('Authlete authorization/issue response', {
@@ -353,11 +367,14 @@ router.post('/authorize/decision', async (req, res) => {
         resultMessage: issueResponse.resultMessage
       });
 
-      if (issueResponse.action === 'LOCATION') {
+      if (issueResponse.action === 'LOCATION' && issueResponse.responseContent) {
         res.redirect(issueResponse.responseContent);
-      } else if (issueResponse.action === 'FORM') {
+      } else if (issueResponse.action === 'FORM' && issueResponse.responseContent) {
         res.setHeader('Content-Type', 'text/html; charset=UTF-8');
         res.send(issueResponse.responseContent);
+      } else if (issueResponse.responseContent) {
+        res.setHeader('Content-Type', 'application/json');
+        res.status(500).send(issueResponse.responseContent);
       } else {
         res.status(500).json({
           error: 'server_error',
@@ -371,10 +388,15 @@ router.post('/authorize/decision', async (req, res) => {
         user: user.username
       });
 
-      const failResponse = await (getAuthleteClient() as any).makeRequest('/auth/authorization/fail', {
+      const failRequest: AuthorizationFailRequest = {
         ticket,
-        reason: 'DENIED',
+        reason: AuthorizationFailRequestReason.Denied,
         description: 'User denied the authorization request'
+      };
+
+      const failResponse = await authlete.authorization.fail({
+        serviceId,
+        authorizationFailRequest: failRequest
       });
 
       oauthLogger.debug('Authlete fail response', {
@@ -406,16 +428,30 @@ router.post('/authorize/decision', async (req, res) => {
           break;
 
         case 'LOCATION':
-          oauthLogger.debug('Redirecting client after consent denial', {
-            redirectUri: failResponse.responseContent
-          });
-          res.redirect(failResponse.responseContent);
+          if (failResponse.responseContent) {
+            oauthLogger.debug('Redirecting client after consent denial', {
+              redirectUri: failResponse.responseContent
+            });
+            res.redirect(failResponse.responseContent);
+          } else {
+            res.status(500).json({
+              error: 'server_error',
+              error_description: 'No redirect content provided'
+            });
+          }
           break;
 
         case 'FORM':
-          oauthLogger.debug('Returning form response after consent denial');
-          res.setHeader('Content-Type', 'text/html; charset=UTF-8');
-          res.send(failResponse.responseContent);
+          if (failResponse.responseContent) {
+            oauthLogger.debug('Returning form response after consent denial');
+            res.setHeader('Content-Type', 'text/html; charset=UTF-8');
+            res.send(failResponse.responseContent);
+          } else {
+            res.status(500).json({
+              error: 'server_error',
+              error_description: 'No form content provided'
+            });
+          }
           break;
 
         default:

@@ -2,7 +2,7 @@
  * Authorization Details検証ユーティリティ
  */
 
-import { AuthorizationDetail } from '../../oauth/authlete/types/index.js';
+import { AuthorizationDetailsElement } from '@authlete/typescript-sdk/models';
 import { mcpLogger } from '../../utils/logger.js';
 
 export interface AuthorizationDetailsValidationResult {
@@ -18,7 +18,7 @@ export interface AuthorizationDetailsValidationResult {
  * Authorization Detailsをパースして検証結果を返す
  */
 export function parseAndValidateAuthorizationDetails(
-  authorizationDetailsObj?: { elements: AuthorizationDetail[] }
+  authorizationDetailsObj?: { elements: AuthorizationDetailsElement[] }
 ): AuthorizationDetailsValidationResult {
   const defaultResult: AuthorizationDetailsValidationResult = {
     allowed: true,
@@ -32,7 +32,7 @@ export function parseAndValidateAuthorizationDetails(
   }
 
   try {
-    const authorizationDetails: AuthorizationDetail[] = authorizationDetailsObj.elements;
+    const authorizationDetails: AuthorizationDetailsElement[] = authorizationDetailsObj.elements;
     
     // チケット予約用のauthorization detailを検索
     const ticketDetail = authorizationDetails.find(

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { AuthleteClient } from '../authlete/client.js';
+import { Authlete } from '@authlete/typescript-sdk';
 import { oauthLogger } from '../../utils/logger.js';
 
 /**
@@ -8,11 +8,7 @@ import { oauthLogger } from '../../utils/logger.js';
  * RFC 7592 OAuth 2.0 Dynamic Client Registration Management Protocol に準拠
  */
 export class DCRController {
-  private authleteClient: AuthleteClient;
-
-  constructor(authleteClient: AuthleteClient) {
-    this.authleteClient = authleteClient;
-  }
+  constructor(private authlete: Authlete, private serviceId: string) {}
 
   /**
    * クライアント登録エンドポイント (POST /register)
@@ -59,9 +55,12 @@ export class DCRController {
       }
 
       // Authlete DCR API を呼び出し
-      const response = await this.authleteClient.makeRequest('/client/registration', {
-        json: JSON.stringify(enhancedClientMetadata)
-      }) as any;
+      const response = await this.authlete.dynamicClientRegistration.register({
+        serviceId: this.serviceId,
+        requestBody: {
+          json: JSON.stringify(enhancedClientMetadata)
+        }
+      });
 
       oauthLogger.debug('Authlete DCR registration response', {
         action: response.action,
@@ -81,7 +80,7 @@ export class DCRController {
             clientName: response.client?.clientName
           });
 
-          var dcrResponse = JSON.parse(response.responseContent);
+          var dcrResponse = response.responseContent ? JSON.parse(response.responseContent) : response.client;
 
           //remove client_secret from response if public client.
           //some MCP client may not respect token_endpoint_auth_method setting and expect no client_secret in response.
@@ -157,10 +156,13 @@ export class DCRController {
       }
 
       // Authlete DCR Get API を呼び出し
-      const response = await this.authleteClient.makeRequest('/client/registration/get', {
-        token: registrationAccessToken,
-        clientId: clientId
-      }) as any;
+      const response = await this.authlete.dynamicClientRegistration.get({
+        serviceId: this.serviceId,
+        requestBody: {
+          token: registrationAccessToken,
+          clientId: clientId
+        }
+      });
 
       oauthLogger.debug('Authlete DCR get response', {
         action: response.action,
@@ -278,11 +280,14 @@ export class DCRController {
       });
 
       // Authlete DCR Update API を呼び出し
-      const response = await this.authleteClient.makeRequest('/client/registration/update', {
-        token: registrationAccessToken,
-        clientId: clientId,
-        json: JSON.stringify(enhancedClientMetadata)
-      }) as any;
+      const response = await this.authlete.dynamicClientRegistration.update({
+        serviceId: this.serviceId,
+        requestBody: {
+          token: registrationAccessToken,
+          clientId: clientId,
+          json: JSON.stringify(enhancedClientMetadata)
+        }
+      });
 
       oauthLogger.debug('Authlete DCR update response', {
         action: response.action,
@@ -368,10 +373,13 @@ export class DCRController {
       }
 
       // Authlete DCR Delete API を呼び出し
-      const response = await this.authleteClient.makeRequest('/client/registration/delete', {
-        token: registrationAccessToken,
-        clientId: clientId
-      }) as any;
+      const response = await this.authlete.dynamicClientRegistration.delete({
+        serviceId: this.serviceId,
+        requestBody: {
+          token: registrationAccessToken,
+          clientId: clientId
+        }
+      });
 
       oauthLogger.debug('Authlete DCR delete response', {
         action: response.action,

@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
-import { AuthleteClient } from '../authlete/client.js';
+import { Authlete } from '@authlete/typescript-sdk';
+import { IntrospectionRequest } from '@authlete/typescript-sdk/models';
 import { oauthLogger } from '../../utils/logger.js';
 
 export class IntrospectionController {
-  constructor(private authleteClient: AuthleteClient) {}
+  constructor(private authlete: Authlete, private serviceId: string) {}
 
   async handleIntrospectionRequest(req: Request, res: Response): Promise<void> {
     try {
@@ -29,51 +30,70 @@ export class IntrospectionController {
       });
 
       // Authlete の Token Introspection API を呼び出し
-      const introspectionResponse = await (this.authleteClient as any).makeRequest('/auth/introspection', {
-        token: token
+      const introspectionRequest: IntrospectionRequest = {
+        token
+      };
+
+      const introspectionResponse = await this.authlete.introspection.process({
+        serviceId: this.serviceId,
+        introspectionRequest
       });
 
       oauthLogger.debug('Authlete introspection response received', {
         action: introspectionResponse.action
       });
 
-      if (introspectionResponse.action === 'OK') {
-        // トークンが有効な場合
-        const responseData = {
-          active: true,
-          scope: introspectionResponse.scopes?.join(' ') || '',
-          client_id: introspectionResponse.clientId?.toString(),
-          username: introspectionResponse.subject,
-          token_type: 'Bearer',
-          exp: introspectionResponse.expiresAt ? Math.floor(introspectionResponse.expiresAt / 1000) : undefined,
-          iat: introspectionResponse.issuedAt ? Math.floor(introspectionResponse.issuedAt / 1000) : undefined,
-          sub: introspectionResponse.subject,
-          aud: introspectionResponse.clientId?.toString()
-        };
-
-        // undefined フィールドを除去
-        Object.keys(responseData).forEach(key => {
-          if (responseData[key as keyof typeof responseData] === undefined) {
-            delete responseData[key as keyof typeof responseData];
+      const sendResponseContent = (status?: number) => {
+        if (introspectionResponse.responseContent) {
+          if (status) {
+            res.status(status);
           }
-        });
+          res.setHeader('Content-Type', 'application/json');
+          res.send(introspectionResponse.responseContent);
+        } else {
+          res.status(status ?? 500).json({
+            error: 'server_error',
+            error_description: 'No introspection response content provided'
+          });
+        }
+      };
 
-        oauthLogger.debug('Returning successful introspection response', responseData);
-        res.json(responseData);
-      } else {
-        // トークンが無効な場合
-        oauthLogger.debug('Token is inactive or invalid');
-        res.json({
-          active: false
-        });
+      switch (introspectionResponse.action) {
+        case 'OK':
+          sendResponseContent();
+          break;
+        case 'BAD_REQUEST':
+          sendResponseContent(400);
+          break;
+        case 'UNAUTHORIZED':
+          sendResponseContent(401);
+          break;
+        case 'FORBIDDEN':
+          sendResponseContent(403);
+          break;
+        case 'INTERNAL_SERVER_ERROR':
+          sendResponseContent(500);
+          break;
+        default:
+          oauthLogger.error('Unexpected introspection action', { action: introspectionResponse.action });
+          sendResponseContent(500);
       }
 
     } catch (error) {
       oauthLogger.error('Introspection request failed', error);
-      res.status(500).json({
-        error: 'server_error',
-        error_description: 'Internal server error occurred during token introspection'
-      });
+      if (
+        error instanceof Error
+        && 'responseContent' in (error as any)
+        && (error as any).responseContent
+      ) {
+        res.setHeader('Content-Type', 'application/json');
+        res.send((error as any).responseContent);
+      } else {
+        res.status(500).json({
+          error: 'server_error',
+          error_description: 'Internal server error occurred during token introspection'
+        });
+      }
     }
   }
 }
