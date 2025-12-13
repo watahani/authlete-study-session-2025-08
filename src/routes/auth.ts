@@ -7,8 +7,9 @@ const router = express.Router();
 
 // ログインページ表示
 router.get('/login', (req, res) => {
-  const { ticket, return_to } = req.query;
-  
+  const { return_to } = req.query;
+  const hasOAuthSession = !!req.session.oauthTicket;
+
   res.send(`
     <!DOCTYPE html>
     <html lang="ja">
@@ -31,10 +32,9 @@ router.get('/login', (req, res) => {
     <body>
       <div class="container">
         <h2>ログイン</h2>
-        ${ticket ? '<div class="info">OAuth認可のためにログインが必要です。</div>' : ''}
+        ${hasOAuthSession ? '<div class="info">OAuth認可のためにログインが必要です。</div>' : ''}
         
         <form action="/auth/login" method="post">
-          ${ticket ? `<input type="hidden" name="ticket" value="${ticket}">` : ''}
           ${return_to ? `<input type="hidden" name="return_to" value="${return_to}">` : ''}
           
           <div class="form-group">
@@ -64,7 +64,7 @@ router.get('/login', (req, res) => {
 router.post('/register', async (req, res) => {
   try {
     const { username, password, email } = req.body;
-    
+
     if (!username || !password || !email) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
@@ -78,22 +78,22 @@ router.post('/register', async (req, res) => {
 });
 
 router.post('/login', (req, res, next) => {
-  const { ticket, return_to } = req.body;
-  
+  const { return_to } = req.body;
+
   // ログイン前のOAuthデータを保存
   const preservedOAuthData = {
     oauthTicket: req.session.oauthTicket,
     oauthClient: req.session.oauthClient,
     oauthScopes: req.session.oauthScopes
   };
-  
+
   logger.debug('Preserving OAuth data before login', {
     sessionId: req.session.id,
     hasTicket: !!preservedOAuthData.oauthTicket,
     hasClient: !!preservedOAuthData.oauthClient,
     hasScopes: !!preservedOAuthData.oauthScopes
   });
-  
+
   passport.authenticate('local', (err: Error, user: Express.User | false) => {
     if (err) {
       return res.status(500).json({ error: 'Authentication error' });
@@ -105,7 +105,7 @@ router.post('/login', (req, res, next) => {
       if (loginErr) {
         return res.status(500).json({ error: 'Login failed' });
       }
-      
+
       // OAuthデータを復元
       if (preservedOAuthData.oauthTicket) {
         req.session.oauthTicket = preservedOAuthData.oauthTicket;
@@ -118,11 +118,10 @@ router.post('/login', (req, res, next) => {
           hasScopes: !!req.session.oauthScopes
         });
       }
-      
+
       // ログイン前のセッションデバッグ
       logger.debug('Login success - Session debug', {
         sessionId: req.session.id,
-        ticket: ticket,
         hasOAuthData: {
           oauthTicket: !!req.session.oauthTicket,
           oauthClient: !!req.session.oauthClient,
@@ -130,33 +129,33 @@ router.post('/login', (req, res, next) => {
         },
         allSessionKeys: Object.keys(req.session)
       });
-      
+
       // セッション保存を確実に行う
       req.session.save((saveErr) => {
         if (saveErr) {
           logger.error('Session save error after login', saveErr);
           return res.status(500).json({ error: 'Session management failed' });
         }
-        
+
         logger.debug('Session saved after login - OAuth data preserved', {
           oauthTicket: !!req.session.oauthTicket,
           oauthClient: !!req.session.oauthClient,
           oauthScopes: !!req.session.oauthScopes
         });
-        
-        // OAuth認可フローからのリダイレクト処理
-        if (ticket) {
-          logger.debug('Redirecting to consent without ticket in URL', { ticketExists: !!ticket });
+
+        // OAuth認可フローからのリダイレクト処理（セッションのoauthTicketを確認）
+        if (req.session.oauthTicket) {
+          logger.debug('Redirecting to consent (OAuth session detected)');
           return res.redirect('/oauth/authorize/consent');
         }
-        
+
         // 通常のリダイレクト処理
         if (return_to) {
           return res.redirect(return_to);
         }
-        
+
         // JSON APIレスポンス（フロントエンド用）
-        return res.json({ 
+        return res.json({
           message: 'Login successful',
           user: {
             username: (user as any).username,
