@@ -2,6 +2,7 @@ import express from 'express';
 import passport from 'passport';
 import { AuthService } from '../services/AuthService.js';
 import { logger } from '../utils/logger.js';
+import { csrfProtection, getCsrfToken } from '../middleware/csrf.js';
 
 const router = express.Router();
 
@@ -35,6 +36,7 @@ router.get('/login', (req, res) => {
         ${hasOAuthSession ? '<div class="info">OAuth認可のためにログインが必要です。</div>' : ''}
         
         <form action="/auth/login" method="post">
+          <input type="hidden" name="_csrf" value="${getCsrfToken(req)}">
           ${return_to ? `<input type="hidden" name="return_to" value="${return_to}">` : ''}
           
           <div class="form-group">
@@ -77,7 +79,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-router.post('/login', (req, res, next) => {
+router.post('/login', csrfProtection, (req, res, next) => {
   const { return_to } = req.body;
 
   // ログイン前のOAuthデータを保存

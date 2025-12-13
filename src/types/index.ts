@@ -71,5 +71,6 @@ declare module 'express-session' {
     oauthTicket?: string;
     oauthClient?: OAuthClient;
     oauthScopes?: OAuthScope[];
+    csrfToken?: string;
   }
 }

@@ -12,6 +12,7 @@ import { IntrospectionController } from '../controllers/introspection.js';
 import { DCRController } from '../controllers/dcr.js';
 import { oauthLogger } from '../../utils/logger.js';
 import { getAuthleteContext } from '../authlete-sdk.js';
+import { csrfProtection, getCsrfToken } from '../../middleware/csrf.js';
 
 const router = express.Router();
 
@@ -91,7 +92,7 @@ router.delete('/register/:client_id', (req, res) => {
 
 router.get('/authorize/consent', (req, res) => {
   const { oauthTicket, oauthClient, oauthScopes } = req.session;
-  
+
   // セッションデバッグ情報（ticketはURLから削除）
   oauthLogger.debug('Consent page session debug', {
     sessionId: req.session.id,
@@ -198,12 +199,14 @@ router.get('/authorize/consent', (req, res) => {
 
       <div class="buttons">
         <form id="consent-form" action="/oauth/authorize/decision" method="post" style="display: inline;">
+          <input type="hidden" name="_csrf" value="${getCsrfToken(req)}">
           <input type="hidden" name="authorized" value="true">
           <input type="hidden" name="authorizationDetailsJson" id="authorizationDetailsJson">
           <button type="submit" class="approve">許可する</button>
         </form>
         
         <form action="/oauth/authorize/decision" method="post" style="display: inline;">
+          <input type="hidden" name="_csrf" value="${getCsrfToken(req)}">
           <input type="hidden" name="authorized" value="false">
           <button type="submit" class="deny">拒否する</button>
         </form>
@@ -263,14 +266,14 @@ router.get('/callback', (req, res) => {
     query: req.query,
     url: req.url
   });
-  
+
   res.json({
     message: 'OAuth callback received',
     params: req.query
   });
 });
 
-router.post('/authorize/decision', async (req, res) => {
+router.post('/authorize/decision', csrfProtection, async (req, res) => {
   oauthLogger.debug('Decision endpoint called', {
     method: req.method,
     url: req.url,
@@ -279,12 +282,12 @@ router.post('/authorize/decision', async (req, res) => {
     sessionId: req.session.id,
     userAuthenticated: !!req.user
   });
-  
+
   try {
     const { authorized, authorizationDetailsJson } = req.body;
     const user = req.user as any;
     const { oauthTicket, oauthClient, oauthScopes } = req.session;
-    
+
     oauthLogger.debug('Decision processing', {
       authorized: authorized,
       hasUser: !!user,
@@ -297,11 +300,11 @@ router.post('/authorize/decision', async (req, res) => {
 
     // セッション情報の検証
     if (!user || !oauthTicket || !oauthClient || !oauthScopes) {
-      oauthLogger.warn('Missing required data', { 
-        user: !!user, 
-        oauthTicket: !!oauthTicket, 
-        oauthClient: !!oauthClient, 
-        oauthScopes: !!oauthScopes 
+      oauthLogger.warn('Missing required data', {
+        user: !!user,
+        oauthTicket: !!oauthTicket,
+        oauthClient: !!oauthClient,
+        oauthScopes: !!oauthScopes
       });
       return res.status(400).json({
         error: 'invalid_request',
@@ -335,18 +338,18 @@ router.post('/authorize/decision', async (req, res) => {
           issueParams.authorizationDetails = {
             elements: authorizationDetailsArray // elements配列として設定
           };
-          
+
           oauthLogger.debug('Authorization details parsed', {
             authorizationDetails: issueParams.authorizationDetails
           });
         } catch (error) {
-          oauthLogger.error('Failed to parse authorization details JSON', { 
-            authorizationDetailsJson, 
-            error 
+          oauthLogger.error('Failed to parse authorization details JSON', {
+            authorizationDetailsJson,
+            error
           });
         }
       }
-      
+
       // デバッグログ: issue エンドポイントに送信するパラメーター
       oauthLogger.debug('Authlete authorization/issue request params', {
         ticket: ticket.substring(0, 20) + '...',
@@ -354,12 +357,12 @@ router.post('/authorize/decision', async (req, res) => {
         username: user.username,
         hasAuthorizationDetails: !!issueParams.authorizationDetails
       });
-      
+
       const issueResponse = await authlete.authorization.issue({
         serviceId,
         authorizationIssueRequest: issueParams
       });
-      
+
       // デバッグログ: issue エンドポイントのレスポンス
       oauthLogger.debug('Authlete authorization/issue response', {
         action: issueResponse.action,
@@ -471,7 +474,7 @@ router.post('/authorize/decision', async (req, res) => {
     delete req.session.oauthTicket;
     delete req.session.oauthClient;
     delete req.session.oauthScopes;
-    
+
     // セッション保存（クリーンアップ後）
     req.session.save((saveErr) => {
       if (saveErr) {

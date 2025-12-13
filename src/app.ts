@@ -15,6 +15,7 @@ import { authRoutes } from './routes/auth.js';
 import { ticketRoutes } from './routes/tickets.js';
 import { oauthRoutes } from './oauth/routes/oauth-routes.js';
 import { logger } from './utils/logger.js';
+import { csrfTokenMiddleware } from './middleware/csrf.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -90,7 +91,7 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'default-secret-key',
   resave: false,
   saveUninitialized: false,
-  cookie: { 
+  cookie: {
     secure: true, // HTTPS環境のためセキュアクッキーを有効
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000 // 24時間
@@ -99,6 +100,9 @@ app.use(session({
 
 app.use(passport.initialize());
 app.use(passport.session());
+
+// CSRFトークン生成ミドルウェア（すべてのリクエストでトークンを生成）
+app.use(csrfTokenMiddleware);
 
 app.use('/auth', authRoutes);
 app.use('/api', ticketRoutes);
@@ -125,7 +129,7 @@ app.get('/.well-known/oauth-protected-resource/mcp', getProtectedResourceMetadat
 // テスト用OAuthコールバックエンドポイント
 app.get('/callback', (req, res) => {
   const { code, error, error_description, state } = req.query;
-  
+
   if (error) {
     res.send(`
       <!DOCTYPE html>
@@ -192,9 +196,9 @@ const startServer = async (): Promise<void> => {
     // MCP ルートを追加
     const oauthMiddleware = MCP_OAUTH_ENABLED
       ? oauthAuthentication({
-          requiredScopes: ['mcp:tickets:read'],
-          requireSSL: true
-        })
+        requiredScopes: ['mcp:tickets:read'],
+        requireSSL: true
+      })
       : undefined;
 
     const mcpRoutes = createMCPRoutes({
@@ -206,38 +210,38 @@ const startServer = async (): Promise<void> => {
     app.use('/', mcpRoutes);
 
     // HTTPS モード
-      
-      // SSL証明書の確認
-      if (!checkSSLCertificates()) {
-        logger.error('SSL証明書が見つかりません');
-        logger.info('以下のコマンドでSSL証明書を生成してください:');
-        logger.info('  npm run generate-ssl');
-        logger.info('または:');
-        logger.info('  ./scripts/generate-ssl-cert.sh');
-        process.exit(1);
-      }
 
-      // SSL証明書を読み込み
-      const privateKey = fs.readFileSync(SSL_KEY_PATH, 'utf8');
-      const certificate = fs.readFileSync(SSL_CERT_PATH, 'utf8');
-      const credentials = { key: privateKey, cert: certificate };
+    // SSL証明書の確認
+    if (!checkSSLCertificates()) {
+      logger.error('SSL証明書が見つかりません');
+      logger.info('以下のコマンドでSSL証明書を生成してください:');
+      logger.info('  npm run generate-ssl');
+      logger.info('または:');
+      logger.info('  ./scripts/generate-ssl-cert.sh');
+      process.exit(1);
+    }
 
-      // HTTPサーバー（HTTPSへのリダイレクト用）
-      const httpApp = express();
-      httpApp.use((req, res) => {
-        const httpsUrl = `https://${req.headers.host?.replace(/:\d+/, `:${HTTPS_PORT}`)}${req.url}`;
-        res.redirect(301, httpsUrl);
-      });
+    // SSL証明書を読み込み
+    const privateKey = fs.readFileSync(SSL_KEY_PATH, 'utf8');
+    const certificate = fs.readFileSync(SSL_CERT_PATH, 'utf8');
+    const credentials = { key: privateKey, cert: certificate };
 
-      // HTTPSサーバーを起動
-      const httpsServer = https.createServer(credentials, app);
-      
-      httpsServer.listen(HTTPS_PORT, () => {
-        logger.info(`HTTPS Server running on https://localhost:${HTTPS_PORT}`);
-        logger.info(`MCP endpoint: https://localhost:${HTTPS_PORT}/mcp`);
-        logger.info(`MCP health check: https://localhost:${HTTPS_PORT}/mcp/health`);
-        logger.info(`App health check: https://localhost:${HTTPS_PORT}/health`);
-      });
+    // HTTPサーバー（HTTPSへのリダイレクト用）
+    const httpApp = express();
+    httpApp.use((req, res) => {
+      const httpsUrl = `https://${req.headers.host?.replace(/:\d+/, `:${HTTPS_PORT}`)}${req.url}`;
+      res.redirect(301, httpsUrl);
+    });
+
+    // HTTPSサーバーを起動
+    const httpsServer = https.createServer(credentials, app);
+
+    httpsServer.listen(HTTPS_PORT, () => {
+      logger.info(`HTTPS Server running on https://localhost:${HTTPS_PORT}`);
+      logger.info(`MCP endpoint: https://localhost:${HTTPS_PORT}/mcp`);
+      logger.info(`MCP health check: https://localhost:${HTTPS_PORT}/mcp/health`);
+      logger.info(`App health check: https://localhost:${HTTPS_PORT}/health`);
+    });
 
 
   } catch (error) {
