@@ -4,12 +4,12 @@ import { AuthorizationRequest, AuthorizationResponse } from '@authlete/typescrip
 import { oauthLogger } from '../../utils/logger.js';
 
 export class AuthorizationController {
-  constructor(private authlete: Authlete, private serviceId: string) {}
+  constructor(private authlete: Authlete, private serviceId: string) { }
 
   async handleAuthorizationRequest(req: Request, res: Response): Promise<void> {
     try {
       let parameters: string;
-      
+
       if (req.method === 'GET') {
         parameters = new URL(`${req.protocol}://${req.get('host')}${req.originalUrl}`).search.substring(1);
       } else {
@@ -111,7 +111,7 @@ export class AuthorizationController {
       hasUser: !!req.user,
       ticket: response.ticket
     });
-    
+
     // WORKAROUND: Authlete authorization レスポンスにauthorizationDetailsTypesが含まれないため、
     // 別途 client/get API を呼び出してクライアント詳細を取得する
     let clientWithAuthDetails = response.client;
@@ -121,7 +121,7 @@ export class AuthorizationController {
           serviceId: this.serviceId,
           clientId: response.client.clientId.toString()
         });
-        
+
         oauthLogger.debug('Client details from client/get API', {
           clientId: response.client.clientId,
           hasAuthorizationDetailsTypes: !!clientDetails.authorizationDetailsTypes,
@@ -133,7 +133,7 @@ export class AuthorizationController {
           clientWithAuthDetails = {
             ...response.client,
             authorizationDetailsTypes: clientDetails.authorizationDetailsTypes
-          };
+          } as any;
         }
       } catch (error) {
         oauthLogger.warn('Failed to fetch client details for authorizationDetailsTypes', {
@@ -145,8 +145,8 @@ export class AuthorizationController {
 
     // セッションにOAuth情報を保存
     req.session.oauthTicket = response.ticket;
-    req.session.oauthClient = clientWithAuthDetails;
-    req.session.oauthScopes = Array.isArray(response.scopes) ? response.scopes : [];
+    req.session.oauthClient = clientWithAuthDetails as any;
+    req.session.oauthScopes = (Array.isArray(response.scopes) ? response.scopes : []) as any;
 
     // 保存直後の確認
     oauthLogger.debug('After assignment - Session OAuth data', {
@@ -166,7 +166,7 @@ export class AuthorizationController {
         });
         return;
       }
-      
+
       oauthLogger.debug('Session saved successfully - redirecting...', {
         sessionId: req.session.id
       });

@@ -1,35 +1,50 @@
 let currentUser = null;
+let csrfToken = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-    setupEventListeners();
-    checkAuthStatus();
-    loadTickets();
+    fetchCsrfToken().then(() => {
+        setupEventListeners();
+        checkAuthStatus();
+        loadTickets();
+    });
 });
+
+async function fetchCsrfToken() {
+    try {
+        const response = await fetch('/auth/csrf-token');
+        if (response.ok) {
+            const data = await response.json();
+            csrfToken = data.csrfToken;
+        }
+    } catch (error) {
+        console.error('Failed to fetch CSRF token:', error);
+    }
+}
 
 function setupEventListeners() {
     // ログインボタン
     document.getElementById('login-button').addEventListener('click', login);
-    
+
     // 登録ボタン
     document.getElementById('register-button').addEventListener('click', register);
-    
+
     // ログアウトボタン
     document.getElementById('logout-button').addEventListener('click', logout);
-    
+
     // フォーム切り替えリンク
     document.getElementById('show-register-link').addEventListener('click', (e) => {
         e.preventDefault();
         showRegisterForm();
     });
-    
+
     document.getElementById('show-login-link').addEventListener('click', (e) => {
         e.preventDefault();
         showLoginForm();
     });
-    
+
     // 予約履歴ボタン
     document.getElementById('show-reservations-button').addEventListener('click', showMyReservations);
-    
+
     // チケット一覧に戻るボタン
     document.getElementById('show-tickets-button').addEventListener('click', showTickets);
 }
@@ -71,7 +86,7 @@ function updateAuthUI(isAuthenticated) {
     const loginForm = document.getElementById('login-form');
     const registerForm = document.getElementById('register-form');
     const userInfo = document.getElementById('user-info');
-    
+
     if (isAuthenticated && currentUser) {
         loginForm.classList.add('hidden');
         registerForm.classList.add('hidden');
@@ -88,21 +103,24 @@ async function register() {
     const username = document.getElementById('register-username').value;
     const email = document.getElementById('register-email').value;
     const password = document.getElementById('register-password').value;
-    
+
     if (!username || !email || !password) {
         showMessage('すべての項目を入力してください', 'error');
         return;
     }
-    
+
     try {
         const response = await fetch('/auth/register', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'x-csrf-token': csrfToken
+            },
             body: JSON.stringify({ username, email, password })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
             showMessage('登録が完了しました。ログインしてください。', 'success');
             showLoginForm();
@@ -117,31 +135,34 @@ async function register() {
 async function login() {
     const username = document.getElementById('login-username').value;
     const password = document.getElementById('login-password').value;
-    
+
     if (!username || !password) {
         showMessage('ユーザー名とパスワードを入力してください', 'error');
         return;
     }
-    
+
     try {
         console.log('Attempting login for:', username);
         const response = await fetch('/auth/login', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'x-csrf-token': csrfToken
+            },
             body: JSON.stringify({ username, password })
         });
-        
+
         console.log('Login response status:', response.status);
         console.log('Login response headers:', response.headers);
-        
+
         // レスポンスタイプを確認
         const contentType = response.headers.get('Content-Type');
         console.log('Content-Type:', contentType);
-        
+
         if (contentType && contentType.includes('application/json')) {
             const data = await response.json();
             console.log('Login response data:', data);
-            
+
             if (response.ok) {
                 currentUser = data.user;
                 updateAuthUI(true);
@@ -177,8 +198,11 @@ async function login() {
 
 async function logout() {
     try {
-        const response = await fetch('/auth/logout', { method: 'POST' });
-        
+        const response = await fetch('/auth/logout', {
+            method: 'POST',
+            headers: { 'x-csrf-token': csrfToken }
+        });
+
         if (response.ok) {
             currentUser = null;
             updateAuthUI(false);
@@ -194,7 +218,7 @@ async function loadTickets() {
     try {
         const response = await fetch('/api/tickets');
         const tickets = await response.json();
-        
+
         const ticketsList = document.getElementById('tickets-list');
         ticketsList.innerHTML = tickets.map(ticket => `
             <div class="ticket-card">
@@ -211,7 +235,7 @@ async function loadTickets() {
                 ` : '<p>予約するにはログインしてください</p>'}
             </div>
         `).join('');
-        
+
         // 予約ボタンにイベントリスナーを追加
         document.querySelectorAll('.reserve-button').forEach(button => {
             button.addEventListener('click', (e) => {
@@ -229,22 +253,25 @@ async function reserveTicket(ticketId) {
         showMessage('ログインが必要です', 'error');
         return;
     }
-    
+
     const seats = parseInt(document.getElementById(`seats-${ticketId}`).value);
     if (!seats || seats <= 0) {
         showMessage('正しい座席数を入力してください', 'error');
         return;
     }
-    
+
     try {
         const response = await fetch(`/api/tickets/${ticketId}/reserve`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'x-csrf-token': csrfToken
+            },
             body: JSON.stringify({ seats })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
             showMessage(`${seats}席を予約しました`, 'success');
             loadTickets(); // 更新
@@ -261,14 +288,14 @@ async function showMyReservations() {
         showMessage('ログインが必要です', 'error');
         return;
     }
-    
+
     try {
         const response = await fetch('/api/my-reservations');
         const reservations = await response.json();
-        
+
         document.getElementById('tickets-section').classList.add('hidden');
         document.getElementById('reservations-section').classList.remove('hidden');
-        
+
         const reservationsList = document.getElementById('reservations-list');
         if (reservations.length === 0) {
             reservationsList.innerHTML = '<p>予約はありません</p>';
@@ -286,7 +313,7 @@ async function showMyReservations() {
                     </button>
                 </div>
             `).join('');
-            
+
             // キャンセルボタンにイベントリスナーを追加
             document.querySelectorAll('.cancel-button').forEach(button => {
                 button.addEventListener('click', (e) => {
@@ -304,14 +331,15 @@ async function cancelReservation(reservationId) {
     if (!confirm('本当に予約をキャンセルしますか？')) {
         return;
     }
-    
+
     try {
         const response = await fetch(`/api/reservations/${reservationId}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: { 'x-csrf-token': csrfToken }
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
             showMessage('予約をキャンセルしました', 'success');
             showMyReservations(); // 更新

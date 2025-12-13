@@ -29,9 +29,10 @@
   "dependencies": {
     "@authlete/typescript-sdk": "^0.0.3-beta",
     "@cedar-policy/cedar-wasm": "latest",
-    "@modelcontextprotocol/sdk": "latest",
+    "@modelcontextprotocol/sdk": "^1.24.3",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
+    "csrf-sync": "^4.2.1",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-session": "^1.17.3",
