@@ -6,6 +6,11 @@ import { csrfProtection, getCsrfToken } from '../middleware/csrf.js';
 
 const router = express.Router();
 
+// CSRFトークン取得API
+router.get('/csrf-token', (req, res) => {
+  res.json({ csrfToken: getCsrfToken(req) });
+});
+
 // ログインページ表示
 router.get('/login', (req, res) => {
   const { return_to } = req.query;

@@ -14,7 +14,7 @@ const { csrfSynchronisedProtection, generateToken } = csrfSync({
     },
     storeTokenInState: (req, token) => {
         // セッションにトークンを保存
-        req.session.csrfToken = token;
+        req.session.csrfToken = token || undefined;
     },
     size: 64, // トークンのサイズ（バイト）
 });
@@ -24,7 +24,7 @@ export const csrfTokenMiddleware = (req: Request, res: Response, next: NextFunct
     // セッションにトークンがなければ生成
     if (!req.session.csrfToken) {
         const token = generateToken(req);
-        req.session.csrfToken = token;
+        req.session.csrfToken = token || undefined;
     }
 
     // テンプレートで使用できるようにres.localsに設定
