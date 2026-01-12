@@ -40,7 +40,10 @@ export class Logger {
 
   constructor(context?: string, config?: Partial<LoggerConfig>) {
     // 環境変数からログレベルを取得
-    const envLogLevel = this.parseLogLevel(process.env.LOG_LEVEL || 'info');
+    const levelFromEnv = process.env.TEST_LOG_LEVEL
+      ? process.env.TEST_LOG_LEVEL
+      : (process.env.LOG_LEVEL || 'info');
+    const envLogLevel = this.parseLogLevel(levelFromEnv);
     
     this.config = {
       level: envLogLevel,
